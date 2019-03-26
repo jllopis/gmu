@@ -7,9 +7,9 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/iancoleman/strcase"
 	"github.com/spf13/cobra"
 	"github.com/xlab/treeprint"
-	"github.com/iancoleman/strcase"
 )
 
 var (
@@ -19,10 +19,10 @@ var (
 		Run:   newCmdRun,
 	}
 
-	path string
-	projectUrl string
-	projectEmail string
-	serviceName string
+	path           string
+	projectUrl     string
+	projectEmail   string
+	serviceName    string
 	serviceVersion string
 )
 
@@ -52,12 +52,12 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 	fmt.Printf("Path: %v\n\n", projectRootPath)
 	checkDirMustNotExist(projectRootPath + "/" + projectName)
 
-	rd := &Directory{Name: strcase.ToSnake(projectName), Path:  filepath.Join(projectRootPath, strcase.ToSnake(projectName))}
+	rd := &Directory{Name: strcase.ToSnake(projectName), Path: filepath.Join(projectRootPath, strcase.ToSnake(projectName))}
 
 	apid := rd.addDirectory("api")
 	apid.addDirectory("proto").
 		addDirectory("v1").
-		addFile(strings.ToLower(projectName)+".proto", "proto.tmpl")
+		addFile(strings.ToLower(projectName)+".proto", "proto.tmpl", false)
 	apid.addDirectory("swagger").
 		addDirectory("v1")
 
@@ -70,27 +70,27 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 	pkgd.addDirectory("api").
 		addDirectory("v1")
 
-	// scriptsd := rd.addDirectory("scripts")
-	// scriptsd.addFile("get-protoc", "getprotoc.tmpl")
-	// scriptsd.addFile("get-ext-protos", "getextprotos.tmpl")
+	scriptsd := rd.addDirectory("scripts")
+	scriptsd.addFile("get-protoc", "getprotoc.tmpl", true)
+	// scriptsd.addFile("get-ext-protos", "getextprotos.tmpl", true)
 
 	// tpd := rd.addDirectory("third_party")
-	// tpd.addFile("protoc-gen.sh", "protocgen.tmpl")
+	// tpd.addFile("protoc-gen.sh", "protocgen.tmpl", true)
 
 	rd.addDirectory("tools")
-	// rd.addFile(".gitignore", "gitignore.tmpl")
-	// rd.addFile("Makefile", "makefile.tmpl")
-	// rd.addFile("config.mk", "configmk.tmpl")
-	// rd.addFile("README.md", "readme.tmpl")
-	// rd.addFile("go.mod", "mod.tmpl")
+	// rd.addFile(".gitignore", "gitignore.tmpl", false)
+	// rd.addFile("Makefile", "makefile.tmpl", false)
+	// rd.addFile("config.mk", "configmk.tmpl", false)
+	// rd.addFile("README.md", "readme.tmpl", false)
+	// rd.addFile("go.mod", "mod.tmpl", false)
 
 	project := &Project{
-		ProjectName:     projectName,
-		BasePath: projectRootPath,
-		RootDir:  rd,
+		ProjectName:    projectName,
+		BasePath:       projectRootPath,
+		RootDir:        rd,
 		ServiceVersion: serviceVersion,
-		ProjectUrl: projectUrl,
-		ProjectEmail: projectEmail,
+		ProjectUrl:     projectUrl,
+		ProjectEmail:   projectEmail,
 	}
 
 	if serviceName == "" {
@@ -137,12 +137,12 @@ func checkDirMustNotExist(path string) {
 }
 
 type Project struct {
-	ProjectName     string
-	ProjectUrl string
-	ProjectEmail string
-	BasePath string
-	RootDir  *Directory
-	ServiceName string
+	ProjectName    string
+	ProjectUrl     string
+	ProjectEmail   string
+	BasePath       string
+	RootDir        *Directory
+	ServiceName    string
 	ServiceVersion string
 }
 
@@ -157,10 +157,10 @@ type File struct {
 	Name     string
 	Path     string
 	Template string
+	Exec     bool
 }
 
 func (p *Project) Flush() error {
-	fmt.Printf("CREATING DIRECTORY %s: %s\n", p.ProjectName, filepath.Join(p.BasePath, strcase.ToSnake(p.ProjectName)))
 	err := Mkdir(filepath.Join(p.BasePath, strcase.ToSnake(p.ProjectName)))
 	if err != nil {
 		return err
@@ -188,10 +188,14 @@ func (d *Directory) flush(p *Project) error {
 		if err != nil {
 			return err
 		}
+		if f.Exec {
+			if err := os.Chmod(f.Path, 0755); err != nil {
+				fmt.Printf("Error: can not chmod file %s You must make it executable. Error: %s", f.Path, err.Error())
+			}
+		}
 	}
 
 	for _, g := range d.dirs {
-		fmt.Printf("CREATING DIRECTORY %s: %s\n", g.Name, g.Path)
 		err := Mkdir(g.Path)
 		if err != nil {
 			return err
@@ -215,11 +219,12 @@ func (d *Directory) addDirectory(name string) *Directory {
 	return newD
 }
 
-func (d *Directory) addFile(name, template string) {
+func (d *Directory) addFile(name, template string, exec bool) {
 	d.files = append(d.files, &File{
 		Name:     name,
 		Template: template,
 		Path:     filepath.Join(d.Path, name),
+		Exec:     exec,
 	})
 }
 

@@ -1,0 +1,32 @@
+#!/bin/bash -e
+
+## FROM https://github.com/coreos/dex/blob/master/scripts/get-protoc
+
+# This is a script to download protoc. Rather than depending on the version on
+# a developer's machine, always download a specific version.
+
+VERSION="3.7.0"
+
+if [ $# -ne 1 ]; then
+  echo "Usage: ./get-protoc [dest]"
+  exit 2
+fi
+
+# Use the go tool to determine OS.
+OS=$( go env GOOS )
+
+if [ "$OS" = "darwin" ]; then
+  OS="osx"
+fi
+
+# TODO(ericchiang): Architectures other than amd64?
+ZIP="protoc-${VERSION}-${OS}-x86_64.zip"
+URL="https://github.com/google/protobuf/releases/download/v${VERSION}/${ZIP}"
+
+wget ${URL}
+# Unpack the protoc binary. Later we might want to grab additional data. 
+unzip -p ${ZIP} bin/protoc > $1
+unzip ${ZIP} 'include/google/*' -d third_party
+mv third_party/include/google third_party && rm -rf third_party/include
+chmod +x $1
+rm ${ZIP}
