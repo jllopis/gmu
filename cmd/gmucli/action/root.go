@@ -5,7 +5,12 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/gobuffalo/packr/v2"
 )
+
+var globalOptions = struct {
+	Box *packr.Box
+}{}
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
@@ -16,9 +21,9 @@ var RootCmd = &cobra.Command{
 It allows to include REST gateway (via grpc-gateway), monitoring (prometheus), middleware (logging, status, ...) in a hopefully easy way.
 
 Developed with ♡ in Barcelona by the GMU Team`,
-	// PersistentPreRun: func(cmd *cobra.Command, args []string) {
-	// 	initClient()
-	// },
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		globalOptions.Box = packr.New("Templates", "../templates")
+	},
 }
 
 // Execute adds all child commands to the root command sets flags appropriately.

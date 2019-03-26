@@ -1,0 +1,66 @@
+syntax = "proto3";
+package v1;
+
+import "google/api/annotations.proto";
+import "google.protobuf.empty.proto"
+import "protoc-gen-swagger/options/annotations.proto";
+
+// more on swagger annotations on https://github.com/grpc-ecosystem/grpc-gateway/blob/ab0345bb328757bfef2f3d7d4e642e182eb985b9/examples/proto/examplepb/a_bit_of_everything.proto
+option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
+	info: {
+		title: "{{.ServiceName}} service";
+		version: "{{.ServiceVersion}}";
+		contact: {
+			name: "{{.ProjectName}} project";
+			url: "{{.ProjectUrl}}";
+			email: "{{.ProjectEmail}}";
+		};
+	};
+	schemes: HTTP;
+	consumes: "application/json";
+	produces: "application/json";
+	responses: {
+		key: "404";
+		value: {
+			description: "Returned when the resource does not exist.";
+			schema: {
+				json_schema: {
+					type: STRING;
+				}
+			}
+		}
+	}
+};
+
+service {{.ServiceName}}Service {
+    rpc GetServerTime(google.protobuf.Empty) returns (ServerTimeMessage) {
+        option (google.api.http) = {
+            get: "/v1/time"
+        };
+    }
+
+    rpc GetVersion(google.protobuf.Empty) returns (common.Version) {
+        option (google.api.http) = {
+            get: "/v1/version"
+        };
+    }
+
+    rpc GetGlobalServiceStatus(google.protobuf.Empty) returns (ServerStatusMessage) {
+        option (google.api.http) = {
+            get: "/v1/status"
+        };
+    }
+}
+
+message ServerTimeMessage {
+    int64 value = 1;
+}
+
+enum ServerStatus {
+    KO = 0;
+    OK = 1;
+}
+
+message ServerStatusMessage {
+    ServerStatus status = 1;
+}
