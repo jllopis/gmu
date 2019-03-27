@@ -19,11 +19,12 @@ var (
 		Run:   newCmdRun,
 	}
 
-	path           string
-	projectUrl     string
-	projectEmail   string
-	serviceName    string
-	serviceVersion string
+	path          string
+	projectUrl    string
+	projectEmail  string
+	serviceName   string
+	apiVersion    string
+	protocVersion string
 )
 
 func init() {
@@ -33,7 +34,8 @@ func init() {
 	newCmd.Flags().StringVarP(&projectUrl, "project-url", "", "", "URL of the project")
 	newCmd.Flags().StringVarP(&projectEmail, "project-email", "", "", "contact email for the project")
 	newCmd.Flags().StringVarP(&serviceName, "service-name", "", "", "service name, defaults to the project name if not specified")
-	newCmd.Flags().StringVarP(&serviceVersion, "service-version", "", "v1", "service version, defaults to 'v1'")
+	newCmd.Flags().StringVarP(&apiVersion, "api-version", "", "v1", "api major version")
+	newCmd.Flags().StringVarP(&protocVersion, "protoc-version", "", "3.7.0", "protobuf compiler version")
 }
 
 func newCmdRun(cmd *cobra.Command, args []string) {
@@ -72,25 +74,26 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 
 	scriptsd := rd.addDirectory("scripts")
 	scriptsd.addFile("get-protoc", "getprotoc.tmpl", true)
-	// scriptsd.addFile("get-ext-protos", "getextprotos.tmpl", true)
+	scriptsd.addFile("get-ext-protos", "getextprotos.tmpl", true)
 
 	// tpd := rd.addDirectory("third_party")
 	// tpd.addFile("protoc-gen.sh", "protocgen.tmpl", true)
 
 	rd.addDirectory("tools")
 	// rd.addFile(".gitignore", "gitignore.tmpl", false)
-	// rd.addFile("Makefile", "makefile.tmpl", false)
-	// rd.addFile("config.mk", "configmk.tmpl", false)
+	rd.addFile("Makefile", "makefile.tmpl", false)
+	rd.addFile("config.mk", "configmk.tmpl", false)
 	// rd.addFile("README.md", "readme.tmpl", false)
 	// rd.addFile("go.mod", "mod.tmpl", false)
 
 	project := &Project{
-		ProjectName:    projectName,
-		BasePath:       projectRootPath,
-		RootDir:        rd,
-		ServiceVersion: serviceVersion,
-		ProjectUrl:     projectUrl,
-		ProjectEmail:   projectEmail,
+		ProjectName:   projectName,
+		BasePath:      projectRootPath,
+		RootDir:       rd,
+		ApiVersion:    apiVersion,
+		ProjectUrl:    projectUrl,
+		ProjectEmail:  projectEmail,
+		ProtocVersion: protocVersion,
 	}
 
 	if serviceName == "" {
@@ -137,13 +140,14 @@ func checkDirMustNotExist(path string) {
 }
 
 type Project struct {
-	ProjectName    string
-	ProjectUrl     string
-	ProjectEmail   string
-	BasePath       string
-	RootDir        *Directory
-	ServiceName    string
-	ServiceVersion string
+	ProjectName   string
+	ProjectUrl    string
+	ProjectEmail  string
+	BasePath      string
+	RootDir       *Directory
+	ServiceName   string
+	ApiVersion    string
+	ProtocVersion string
 }
 
 type Directory struct {

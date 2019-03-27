@@ -1,0 +1,35 @@
+.PHONY: help
+.DEFAULT_GOAL := help
+
+include config.mk
+
+export PATH := $(TOOLSDIR):$(PATH)
+export GO111MODULE := auto
+
+proto: ## compiles the proto files into pkg/api/v1
+	@./third_party/protoc-gen.sh
+
+tools: tools/protoc tools/protoc-gen-go tools/protoc-gen-grpc-gateway tools/protoc-gen-swagger ## install the needed tools: protoc, protoc-gen-go, protoc-gen-grpc-gateway, protoc-gen-swagger
+
+tools/protoc:
+	@./scripts/get-protoc ${TOOLSDIR}/protoc
+
+tools/protoc-gen-go:
+	@go build -o ${TOOLSDIR}/protoc-gen-go github.com/golang/protobuf/protoc-gen-go
+
+tools/protoc-gen-grpc-gateway:
+	@go build -o ${TOOLSDIR}/protoc-gen-grpc-gateway github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
+tools/protoc-gen-swagger:
+	@go build -o ${TOOLSDIR}/protoc-gen-swagger github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
+
+update-protos: ## updates proto for googleapis and grpc-gateway
+	@./scripts/get-ext-protos
+
+run-server:
+	./server -grpc-port=9090 -http-port=8080 -log-level=-1 -log-time-format=2006-01-02T15:04:05.999999999Z07:00
+
+clean: ## remove the generated files to start clean but keep the images
+	rm -rf $(BLDDIR)
+
+help:
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(firstword $(MAKEFILE_LIST)) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'

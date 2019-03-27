@@ -1,0 +1,8 @@
+# Project options
+# Directories follows (mainly) the Standard Go Projec Layout -> https://github.com/golang-standards/project-layout
+BLDDIR = _build
+TOOLSDIR = tools
+BLDDATE=$(shell date -u +%Y%m%dT%H%M%S)
+VERSION ?= $(shell git describe --tags --always --dirty)
+GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
+API_VERSION="{{.ApiVersion}}"

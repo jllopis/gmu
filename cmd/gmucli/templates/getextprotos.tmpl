@@ -1,0 +1,29 @@
+#!/usr/bin/env bash -e
+
+# Get googleapis protos for grpc-gateway
+if [[ ! -d "third_party/google/api" ]]; then
+  mkdir -p third_party/google/api
+fi
+if [[ ! -d "third_party/google/rpc" ]]; then
+  mkdir -p third_party/google/rpc
+fi
+if [[ ! -d "third_party/protoc-gen-swagger/options" ]]; then
+  mkdir -p third_party/protoc-gen-swagger/options
+fi
+
+# googleapis for grpc-gateway
+declare -A thirdapis
+thirdapis=( \
+["google/api/annotations.proto"]="https://github.com/googleapis/googleapis/raw/master/google/api/annotations.proto" \
+["google/api/http.proto"]="https://github.com/googleapis/googleapis/raw/master/google/api/http.proto" \
+["google/api/httpbody.proto"]="https://github.com/googleapis/googleapis/raw/master/google/api/httpbody.proto" \
+["google/rpc/code.proto"]="https://github.com/googleapis/googleapis/raw/master/google/rpc/code.proto" \
+["google/rpc/error_details.proto"]="https://github.com/googleapis/googleapis/raw/master/google/rpc/error_details.proto" \
+["google/rpc/status.proto"]="https://github.com/googleapis/googleapis/raw/master/google/rpc/status.proto" \
+["protoc-gen-swagger/options/annotations.proto"]="https://github.com/grpc-ecosystem/grpc-gateway/raw/master/protoc-gen-swagger/options/annotations.proto" \
+["protoc-gen-swagger/options/openapiv2.proto"]="https://github.com/grpc-ecosystem/grpc-gateway/raw/master/protoc-gen-swagger/options/openapiv2.proto" \
+)
+
+for subdir in "${!thirdapis[@]}"; do
+  wget -O third_party/${subdir} ${thirdapis[$subdir]}
+done
