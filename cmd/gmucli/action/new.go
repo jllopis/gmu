@@ -3,11 +3,13 @@ package action
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
 
 	"github.com/iancoleman/strcase"
+
 	"github.com/spf13/cobra"
 	"github.com/xlab/treeprint"
 )
@@ -17,6 +19,10 @@ var (
 		Use:   "new",
 		Short: "create a new gRPC project",
 		Run:   newCmdRun,
+	}
+
+	tmplFuncMap = template.FuncMap{
+		"ToLower": strings.ToLower,
 	}
 
 	path          string
@@ -54,7 +60,8 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 	fmt.Printf("Path: %v\n\n", projectRootPath)
 	checkDirMustNotExist(projectRootPath + "/" + projectName)
 
-	rd := &Directory{Name: strcase.ToSnake(projectName), Path: filepath.Join(projectRootPath, strcase.ToSnake(projectName))}
+	// rd := &Directory{Name: strcase.ToSnake(projectName), Path: filepath.Join(projectRootPath, strcase.ToSnake(projectName))}
+	rd := &Directory{Name: strings.ToLower(projectName), Path: filepath.Join(projectRootPath, strings.ToLower(projectName))}
 
 	apid := rd.addDirectory("api")
 	apid.addDirectory("proto").
@@ -71,19 +78,23 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 	pkgd := rd.addDirectory("pkg")
 	pkgd.addDirectory("api").
 		addDirectory("v1")
+	pkgd.addDirectory("cmd").addFile("server.go", "server.go.tmpl", false)
+	pkgd.addDirectory("logger").addFile("logger.go", "logger.go.tmpl", false)
 
 	scriptsd := rd.addDirectory("scripts")
 	scriptsd.addFile("get-protoc", "getprotoc.tmpl", true)
 	scriptsd.addFile("get-ext-protos", "getextprotos.tmpl", true)
 
-	// tpd := rd.addDirectory("third_party")
-	// tpd.addFile("protoc-gen.sh", "protocgen.tmpl", true)
+	tpd := rd.addDirectory("third_party")
+	tpd.addFile("protoc-gen.sh", "protocgen.tmpl", true)
 
 	rd.addDirectory("tools")
 	// rd.addFile(".gitignore", "gitignore.tmpl", false)
 	rd.addFile("Makefile", "makefile.tmpl", false)
 	rd.addFile("config.mk", "configmk.tmpl", false)
-	// rd.addFile("README.md", "readme.tmpl", false)
+	rd.addFile("README.md", "readme.tmpl", false)
+	rd.addFile("LICENCIA.md", "licencia.tmpl", false)
+	rd.addFile("FAQ-Licencia.md", "faq-licencia.tmpl", false)
 	// rd.addFile("go.mod", "mod.tmpl", false)
 
 	project := &Project{
@@ -99,7 +110,7 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 	if serviceName == "" {
 		serviceName = projectName
 	}
-	project.ServiceName = serviceName
+	project.ServiceName = strcase.ToCamel(serviceName)
 
 	fmt.Println("Creating project structure:")
 	err = project.Flush()
@@ -107,6 +118,11 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 		fmt.Printf("error creating project: %v\n", err)
 		os.Exit(1)
 	}
+
+	// postActions will take the actions needed to finalize the setup like runnig
+	// scripts to fill the directories, managing file permissions, or just showing some
+	// indications to follow.
+	project.doPostActions()
 
 	// fmt.Println(rd)
 	fmt.Println("Done!")
@@ -165,11 +181,57 @@ type File struct {
 }
 
 func (p *Project) Flush() error {
-	err := Mkdir(filepath.Join(p.BasePath, strcase.ToSnake(p.ProjectName)))
+	err := Mkdir(filepath.Join(p.BasePath, strings.ToLower(p.ProjectName)))
 	if err != nil {
 		return err
 	}
 	return p.RootDir.flush(p)
+}
+
+func (p *Project) doPostActions() error {
+	// run scripts/get-protoc
+	if err := execute(filepath.Join(p.BasePath, strings.ToLower(p.ProjectName)), "scripts/get-protoc", "tools/protoc"); err != nil {
+		fmt.Printf("error executing scripts/get-protoc, error: %s\n", err.Error())
+	}
+	// run scripts/get-ext-protos
+	if err := execute(filepath.Join(p.BasePath, strings.ToLower(p.ProjectName)), "scripts/get-ext-protos"); err != nil {
+		fmt.Printf("error executing scripts/get-ext-protos, error: %s\n", err.Error())
+	}
+	// run make to get protoc-gen-go
+	if err := execute(filepath.Join(p.BasePath, strings.ToLower(p.ProjectName)), "make", "tools/protoc-gen-go"); err != nil {
+		fmt.Printf("error executing make tools/protoc-gen-go, error: %s\n", err.Error())
+	}
+	// run make to get protoc-gen-grpc-gateway
+	if err := execute(filepath.Join(p.BasePath, strings.ToLower(p.ProjectName)), "make", "tools/protoc-gen-grpc-gateway"); err != nil {
+		fmt.Printf("error executing make tools/protoc-gen-grpc-gateway, error: %s\n", err.Error())
+	}
+	// run make to get grpc-gen-swagger
+	if err := execute(filepath.Join(p.BasePath, strings.ToLower(p.ProjectName)), "make", "tools/protoc-gen-swagger"); err != nil {
+		fmt.Printf("error executing make tools/protoc-gen-swagger, error: %s\n", err.Error())
+	}
+	// run third_party protoc-gen
+	if err := execute(filepath.Join(p.BasePath, strings.ToLower(p.ProjectName)), "make", "proto"); err != nil {
+		fmt.Printf("error executing third_party/protoc-gen.sh, error: %s\n", err.Error())
+	}
+	return nil
+}
+
+func execute(path, command string, params ...string) error {
+	var cmd *exec.Cmd
+	if len(params) > 0 {
+		fmt.Printf("executing %s %v in %s\n", command, params, path)
+		cmd = exec.Command(command, params...)
+	} else {
+		fmt.Printf("executing %s in %s\n", command, path)
+		cmd = exec.Command(command)
+	}
+	cmd.Dir = path
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("combined out:\n%s\n", string(out))
+	return nil
 }
 
 func (d *Directory) flush(p *Project) error {
@@ -178,7 +240,7 @@ func (d *Directory) flush(p *Project) error {
 		if err != nil {
 			return err
 		}
-		t, err := template.New(f.Template).Parse(src)
+		t, err := template.New(f.Template).Funcs(tmplFuncMap).Parse(src)
 		if err != nil {
 			return err
 		}
