@@ -1,0 +1,47 @@
+{{ .ProjectName}}
+=================
+
+> **Copyright 2016-2019** The {{ .ProjectName }} Authors. All rights reserved.
+Use of this source code is governed by an ACB Software license
+that can be found in the **LICENCIA.md** file.
+
+> **Copyright 2016-2019** Los Autores de {{ .ProjectName }}. Todos los derechos reservados.
+El uso de este código fuente se rige por una Licencia de Software ACB
+que se puede encontrar en el archivo LICENCIA.md.
+
+**{{ .ProjectName}}** creates a microserver that expose the defined services with the following protocols:
+
+- [gRPC](google.golang.org/grpc)
+- REST with [gRPC Gateway](github.com/grpc-ecosystem/grpc-gateway)
+
+The messages and services are defined by [Google Protocol Buffers](github.com/golang/protobuf).
+
+The services are provided with:
+
+- logging
+- metrics
+- middleware
+
+# Project structure
+
+The project structure is based on [golang-standards/project-layout](https://github.com/golang-standards/project-layout) trying to standardize on a common root.
+
+The API definitions are under the `api/proto/v1` directory and there is where the `Makefile` expect to find them.
+
+The exec main functions goes to `cmd/server` and there are basic clientes in `cmd/client-grpc` and `cmd/client-rest`.
+
+The `Makefile` takes care of script execution. Those scripts are located in `scripts/` and `third_party` directories.
+
+The `third_party` directory holds external proto definitions which are used in the project. Run `make update-protos` to update them from their sources. After update, 
+you should updated the generated go files also by running `make proto`.
+
+Usually, the main working directory will be `pkg` and its subdirectories. There you will find:
+
+- compiled files from proto in `pkg/api/v1`
+- implementation of the functionality of the commands implemented under `pkg/cmd` (server, clients)
+- logging implementation in `pkg/logger`
+- actual service implementation in `pkg/protocol`. There is a package per implemented protocol (grpc, rest) where the actual serve code lives
+- middleware implementation under `pkg/protocol`. As they are protocol dependent, they are under `middleware` directory within the target protocol
+- services implementation in `pkg/service/v1`. Here is where actual implementation of services defined in proto file takes place. It also holts their test files
+
+Finally, the `tools` directory holds the binaries used to compile the protobuf/grpc and they can be updated running `make tools`.
