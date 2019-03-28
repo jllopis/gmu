@@ -1,0 +1,53 @@
+# Git ignores
+# Make it global with
+# git config --global core.excludesfile ~/.dotfiles.d/packages/git/global_ignore_file
+.*_lck
+*.pem
+*.[pPdDfF]
+
+.secret
+
+# Vim Ignores
+.*.s[a-w][a-z]
+*.un~
+Session.vim
+.netrwhist
+*~
+
+# Go Ignores
+# Compiled Object files, Static and Dynamic libs (Shared Objects)
+*.o
+*.a
+*.so
+
+# Folders
+_build
+
+# OSX Ignores
+.DS_Store
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+Icon
+
+# Thumbnails
+._*
+
+# Eclipse Ignores
+*.pydevproject
+.project
+.metadata
+#bin/**
+tmp/**
+tmp/**/*
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+.classpath
+.settings/
+.loadpath
+
+mydc.yml

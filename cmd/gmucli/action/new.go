@@ -1,6 +1,7 @@
 package action
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/iancoleman/strcase"
 
+	color "github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/xlab/treeprint"
 )
@@ -25,6 +27,7 @@ var (
 		"ToLower": strings.ToLower,
 	}
 
+	packageName   string
 	path          string
 	projectUrl    string
 	projectEmail  string
@@ -46,40 +49,67 @@ func init() {
 
 func newCmdRun(cmd *cobra.Command, args []string) {
 	if len(args) != 1 {
-		fmt.Printf("You must supply a path for the service, e.g gmu new my-project\n")
+		fmt.Printf("[%s] You must supply a path for the service, e.g gmu new my-project\n", color.Red("ERR"))
 		return
 	}
 
-	projectRootPath, err := getBasePath(path)
+	basePath, err := getBasePath(path)
 	if err != nil {
-		fmt.Printf("can not set the project path. Error: %s\n", err.Error())
+		fmt.Printf("can not set the base project path. Error: %s\n", err.Error())
 		os.Exit(1)
 	}
-	projectName := args[0]
-	fmt.Printf("Creating project %s\n", projectName)
-	fmt.Printf("Path: %v\n\n", projectRootPath)
+
+	// we need (modules) a packageName like {{repository}}/{{account}}/{{projectName}} like github.com/jllopis/gmu so we can
+	// set go.mod and generated go files correctly.
+	// If args[0] has no '/' separator, we assume the argument has not enough info so we exit alerting the user.
+	if strings.Index(args[0], "/") == -1 {
+		fmt.Printf("package name does not seem correct. You provided %s and a name in the form of 'github.com/jllopis/gmu' is needed\n\n", args[0])
+		os.Exit(1)
+	}
+	projectName := strings.ToLower(args[0][strings.LastIndex(args[0], "/")+1:])
+	packageName = args[0][:strings.LastIndex(args[0], "/")] + "/" + projectName
+	projectRootPath := filepath.Join(basePath, projectName)
+
 	checkDirMustNotExist(projectRootPath + "/" + projectName)
 
 	// rd := &Directory{Name: strcase.ToSnake(projectName), Path: filepath.Join(projectRootPath, strcase.ToSnake(projectName))}
-	rd := &Directory{Name: strings.ToLower(projectName), Path: filepath.Join(projectRootPath, strings.ToLower(projectName))}
+	rd := &Directory{Name: strings.ToLower(projectName), Path: projectRootPath}
 
 	apid := rd.addDirectory("api")
 	apid.addDirectory("proto").
-		addDirectory("v1").
+		addDirectory(apiVersion).
 		addFile(strings.ToLower(projectName)+".proto", "proto.tmpl", false)
 	apid.addDirectory("swagger").
-		addDirectory("v1")
+		addDirectory(apiVersion)
 
 	cmdd := rd.addDirectory("cmd")
-	cmdd.addDirectory("server")
-	cmdd.addDirectory("client-grpc")
-	cmdd.addDirectory("client-rest")
+	cmdd.addDirectory("server").
+		addFile("main.go", "cmd-server-main.go.tmpl", false)
+	cmdd.addDirectory("client-grpc").
+		addFile("main.go", "cmd-client-grpc-main.go.tmpl", false)
+	cmdd.addDirectory("client-rest").
+		addFile("main.go", "cmd-client-rest-main.go.tmpl", false)
 
 	pkgd := rd.addDirectory("pkg")
 	pkgd.addDirectory("api").
-		addDirectory("v1")
-	pkgd.addDirectory("cmd").addFile("server.go", "server.go.tmpl", false)
+		addDirectory(apiVersion)
+	pkgd.addDirectory("cmd").addFile("server.go", "pkg-cmd-server.go.tmpl", false)
 	pkgd.addDirectory("logger").addFile("logger.go", "logger.go.tmpl", false)
+
+	svcd := pkgd.addDirectory("service").addDirectory(apiVersion)
+	svcd.addFile(serviceName+".go", "pkg-service-sample.go.tmpl", false)
+	svcd.addFile(serviceName+"_test.go", "pkg-service-sample-test.go.tmpl", false)
+
+	protocold := pkgd.addDirectory("protocol")
+	pgrpcd := protocold.addDirectory("grpc")
+	pgrpcd.addFile("server.go", "pkg-protocol-grpc-server.go.tmpl", false)
+	gmidd := pgrpcd.addDirectory("middleware")
+	gmidd.addFile("logger.go", "pkg-protocol-grpc-middleware-logger.go.tmpl", false)
+	prestd := protocold.addDirectory("rest")
+	prestd.addFile("server.go", "pkg-protocol-rest-server.go.tmpl", false)
+	rmidd := prestd.addDirectory("middleware")
+	rmidd.addFile("logger.go", "pkg-protocol-rest-middleware-logger.go.tmpl", false)
+	rmidd.addFile("request-id.go", "pkg-protocol-rest-middleware-request-id.go.tmpl", false)
 
 	scriptsd := rd.addDirectory("scripts")
 	scriptsd.addFile("get-protoc", "getprotoc.tmpl", true)
@@ -89,15 +119,16 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 	tpd.addFile("protoc-gen.sh", "protocgen.tmpl", true)
 
 	rd.addDirectory("tools")
-	// rd.addFile(".gitignore", "gitignore.tmpl", false)
+	rd.addFile("go.mod", "go.mod.tmpl", false)
+	rd.addFile(".gitignore", "gitignore.tmpl", false)
 	rd.addFile("Makefile", "makefile.tmpl", false)
 	rd.addFile("config.mk", "configmk.tmpl", false)
 	rd.addFile("README.md", "readme.tmpl", false)
 	rd.addFile("LICENCIA.md", "licencia.tmpl", false)
 	rd.addFile("FAQ-Licencia.md", "faq-licencia.tmpl", false)
-	// rd.addFile("go.mod", "mod.tmpl", false)
 
 	project := &Project{
+		PackageName:   packageName,
 		ProjectName:   projectName,
 		BasePath:      projectRootPath,
 		RootDir:       rd,
@@ -112,7 +143,27 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 	}
 	project.ServiceName = strcase.ToCamel(serviceName)
 
-	fmt.Println("Creating project structure:")
+	fmt.Println("Project wil be created as:")
+	fmt.Printf("\tPackage Name: %s\n\tProject Name: %s\n\tProject URL: %s\n\tProject Email: %s\n\tBase Path: %s\n\tAPI Version: %s\n\tProtoc Version: %s\n\tRoot Dir: %s\n\n",
+		color.Bold(project.PackageName),
+		color.Bold(project.ProjectName),
+		color.Bold(project.ProjectUrl),
+		color.Bold(project.ProjectEmail),
+		color.Bold(project.BasePath),
+		color.Bold(project.ApiVersion),
+		color.Bold(project.ProtocVersion),
+		project.RootDir,
+	)
+	fmt.Fprintf(os.Stdout, "Is this OK? [%s]es/[%s]o\n",
+		color.Green("y"),
+		color.Red("n"),
+	)
+	scan := bufio.NewScanner(os.Stdin)
+	scan.Scan()
+	if !strings.Contains(strings.ToLower(scan.Text()), "y") {
+		os.Exit(0)
+	}
+
 	err = project.Flush()
 	if err != nil {
 		fmt.Printf("error creating project: %v\n", err)
@@ -135,13 +186,12 @@ func getBasePath(path string) (string, error) {
 		return "", err
 	}
 
-	if &path == nil || path == "" {
+	if &path == nil || path == "" || path == "." {
 		projectPath = cwd
 	} else {
 		if !strings.HasPrefix(path, "/") {
 			fmt.Printf("found relative path %v\n", path)
 			projectPath = cwd + "/" + path
-			fmt.Printf("creating project at %s\n", projectPath)
 		}
 	}
 	return projectPath, nil
@@ -156,6 +206,7 @@ func checkDirMustNotExist(path string) {
 }
 
 type Project struct {
+	PackageName   string
 	ProjectName   string
 	ProjectUrl    string
 	ProjectEmail  string
@@ -181,7 +232,7 @@ type File struct {
 }
 
 func (p *Project) Flush() error {
-	err := Mkdir(filepath.Join(p.BasePath, strings.ToLower(p.ProjectName)))
+	err := Mkdir(filepath.Join(p.BasePath))
 	if err != nil {
 		return err
 	}
@@ -190,27 +241,27 @@ func (p *Project) Flush() error {
 
 func (p *Project) doPostActions() error {
 	// run scripts/get-protoc
-	if err := execute(filepath.Join(p.BasePath, strings.ToLower(p.ProjectName)), "scripts/get-protoc", "tools/protoc"); err != nil {
+	if err := execute(p.BasePath, "scripts/get-protoc", "tools/protoc"); err != nil {
 		fmt.Printf("error executing scripts/get-protoc, error: %s\n", err.Error())
 	}
 	// run scripts/get-ext-protos
-	if err := execute(filepath.Join(p.BasePath, strings.ToLower(p.ProjectName)), "scripts/get-ext-protos"); err != nil {
+	if err := execute(p.BasePath, "scripts/get-ext-protos"); err != nil {
 		fmt.Printf("error executing scripts/get-ext-protos, error: %s\n", err.Error())
 	}
 	// run make to get protoc-gen-go
-	if err := execute(filepath.Join(p.BasePath, strings.ToLower(p.ProjectName)), "make", "tools/protoc-gen-go"); err != nil {
+	if err := execute(p.BasePath, "make", "tools/protoc-gen-go"); err != nil {
 		fmt.Printf("error executing make tools/protoc-gen-go, error: %s\n", err.Error())
 	}
 	// run make to get protoc-gen-grpc-gateway
-	if err := execute(filepath.Join(p.BasePath, strings.ToLower(p.ProjectName)), "make", "tools/protoc-gen-grpc-gateway"); err != nil {
+	if err := execute(p.BasePath, "make", "tools/protoc-gen-grpc-gateway"); err != nil {
 		fmt.Printf("error executing make tools/protoc-gen-grpc-gateway, error: %s\n", err.Error())
 	}
 	// run make to get grpc-gen-swagger
-	if err := execute(filepath.Join(p.BasePath, strings.ToLower(p.ProjectName)), "make", "tools/protoc-gen-swagger"); err != nil {
+	if err := execute(p.BasePath, "make", "tools/protoc-gen-swagger"); err != nil {
 		fmt.Printf("error executing make tools/protoc-gen-swagger, error: %s\n", err.Error())
 	}
 	// run third_party protoc-gen
-	if err := execute(filepath.Join(p.BasePath, strings.ToLower(p.ProjectName)), "make", "proto"); err != nil {
+	if err := execute(p.BasePath, "make", "proto"); err != nil {
 		fmt.Printf("error executing third_party/protoc-gen.sh, error: %s\n", err.Error())
 	}
 	return nil
@@ -219,18 +270,19 @@ func (p *Project) doPostActions() error {
 func execute(path, command string, params ...string) error {
 	var cmd *exec.Cmd
 	if len(params) > 0 {
-		fmt.Printf("executing %s %v in %s\n", command, params, path)
+		fmt.Printf("\t%s  %s %v\n", color.Cyan("run"), command, params)
 		cmd = exec.Command(command, params...)
 	} else {
-		fmt.Printf("executing %s in %s\n", command, path)
+		fmt.Printf("\t%s  %s\n", color.Cyan("run"), command)
 		cmd = exec.Command(command)
 	}
 	cmd.Dir = path
-	out, err := cmd.CombinedOutput()
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
 	if err != nil {
 		return err
 	}
-	fmt.Printf("combined out:\n%s\n", string(out))
 	return nil
 }
 

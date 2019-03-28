@@ -23,7 +23,7 @@ run: bin ## force rebuild the docker image (even if they haven't changed) and ru
 	--service-name testme \
 	--api-version v1 \
 	--protoc-version 3.7.0 \
-	new testProjectFromMake
+	new github.com/gmu/testProjectFromMake
 
 clean: ## remove the generated files to start clean but keep the images
 	rm -rf $(BLDDIR) | true

@@ -1,0 +1,41 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"log"
+	"time"
+
+	"{{ .PackageName }}/pkg/api/{{ .ApiVersion }}"
+	"google.golang.org/grpc"
+)
+
+const (
+	// apiVersion is version of API is provided by server
+	apiVersion = "{{ .ApiVersion }}"
+)
+
+func main() {
+	// get configuration
+	address := flag.String("server", "", "gRPC server in format host:port")
+	flag.Parse()
+
+	// Set up a connection to the server.
+	conn, err := grpc.Dial(*address, grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	defer conn.Close()
+
+	c := {{ .ApiVersion }}.NewEchoServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// {{ .ServiceName }}
+	res1, err := c.Echo(ctx, &v1.StringMessage{Api: apiVersion, Value: "echo from test client!"})
+	if err != nil {
+		log.Fatalf("Create failed: %v", err)
+	}
+	log.Printf("Create result: <%+v>\n\n", res1)
+}

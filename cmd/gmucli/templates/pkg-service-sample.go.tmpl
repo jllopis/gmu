@@ -1,0 +1,45 @@
+package v1
+
+import (
+	"fmt"
+	"context"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"{{ .PackageName }}/pkg/api/{{ .ApiVersion }}"
+	"{{ .PackageName }}/pkg/logger"
+)
+
+const (
+	// apiVersion is version of API is provided by server
+	apiVersion = "{{ .ApiVersion }}"
+)
+
+type {{ .ServiceName}}ServiceServer struct{}
+
+// New{{ .ServiceName}}ServiceServer creates ToDo service
+func New{{ .ServiceName}}ServiceServer() v1.EchoServiceServer {
+	return &{{ .ServiceName}}ServiceServer{}
+}
+
+// checkAPI checks if the API version requested by client is supported by server
+func (e *{{ .ServiceName}}ServiceServer) checkAPI(api string) error {
+	// API version is "" means use current version of the service
+	if len(api) > 0 {
+		if apiVersion != api {
+			return status.Errorf(codes.Unimplemented,
+				"unsupported API version: service implements API version '%s', but asked for '%s'", apiVersion, api)
+		}
+	}
+	return nil
+}
+
+func (e *{{ .ServiceName}}ServiceServer) Echo(ctx context.Context, msg *v1.StringMessage) (*v1.StringMessage, error) {
+	logger.Log.Debug(fmt.Sprintf("got request: <'%+v'>", msg))
+	// check if the API version requested by client is supported by server
+	if err := e.checkAPI(msg.Api); err != nil {
+		return nil, err
+	}
+	return msg, nil
+}

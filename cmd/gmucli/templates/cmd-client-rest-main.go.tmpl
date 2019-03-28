@@ -1,0 +1,36 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"strings"
+)
+
+func main() {
+	// get configuration
+	address := flag.String("server", "http://localhost:8080", "HTTP gateway url, e.g. http://localhost:8080")
+	flag.Parse()
+
+	var body string
+
+	// Call Create
+	resp, err := http.Post(*address+"/v1/echo", "application/json", strings.NewReader(`
+		{
+			"api":"{{ .ApiVersion }}",
+			"value": "test from rest client"
+		}`))
+	if err != nil {
+		log.Fatalf("failed to call {{ .ServiceName }} service: %v", err)
+	}
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		body = fmt.Sprintf("failed read {{ .ServiceName }} response body: %v", err)
+	} else {
+		body = string(bodyBytes)
+	}
+	log.Printf("Echo response: Code=%d, Body=%s\n\n", resp.StatusCode, body)
+}

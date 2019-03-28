@@ -1,0 +1,55 @@
+package grpc
+
+import (
+	"context"
+	"net"
+	"os"
+	"os/signal"
+
+	"{{ .PackageName }}/pkg/api/{{ .ApiVersion }}"
+	"{{ .PackageName }}/pkg/logger"
+	"{{ .PackageName }}/pkg/protocol/grpc/middleware"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+)
+
+// Serve runs gRPC service
+// TODO: passar en conter de {{ .ApiVersion }}.EchoServiceServer un array []ServiceRegistrator (y en rest ServiceGwRegistrator) per permetre més d'un servei
+func Serve(ctx context.Context, api {{ .ApiVersion }}.EchoServiceServer, port string) error {
+	listen, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		return err
+	}
+
+	// gRPC server statup options
+	opts := []grpc.ServerOption{}
+
+	// add middleware
+	opts = middleware.AddLogging(logger.Log, opts)
+
+	// register service
+	server := grpc.NewServer(opts...)
+	{{ .ApiVersion }}.RegisterEchoServiceServer(server, api)
+
+	// graceful shutdown
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		for range c {
+			// sig is a ^C, handle it
+			logger.Log.Warn("shutting down gRPC server...")
+
+			server.GracefulStop()
+
+			<-ctx.Done()
+		}
+	}()
+
+	// Register reflection service on gRPC server
+	reflection.Register(server)
+
+	// start gRPC server
+	logger.Log.Info("starting gRPC server...")
+	return server.Serve(listen)
+}

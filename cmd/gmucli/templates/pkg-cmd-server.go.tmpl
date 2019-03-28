@@ -5,10 +5,10 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/jllopis/echo/pkg/logger"
-	"github.com/jllopis/echo/pkg/protocol/grpc"
-	"github.com/jllopis/echo/pkg/protocol/rest"
-	"github.com/jllopis/echo/pkg/service/v1"
+	"{{ .PackageName }}/pkg/logger"
+	"{{ .PackageName }}/pkg/protocol/grpc"
+	"{{ .PackageName }}/pkg/protocol/rest"
+	"{{ .PackageName }}/pkg/service/{{ .ApiVersion }}"
 )
 
 // Config is configuration for Server
@@ -55,7 +55,7 @@ func RunServer() error {
 		return fmt.Errorf("failed to initialize logger: %v", err)
 	}
 
-	api := v1.New{{.ServiceName}}Server()
+	api := {{ .ApiVersion }}.New{{.ServiceName}}Server()
 
 	// run HTTP gateway
 	go func() {

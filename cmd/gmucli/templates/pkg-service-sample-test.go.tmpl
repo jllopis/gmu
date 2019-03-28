@@ -1,0 +1,66 @@
+package v1
+
+import (
+	"context"
+	"reflect"
+	"testing"
+
+	"{{ .PackageName }}/pkg/api/{{ .ApiVersion }}"
+)
+
+func Test_echoServiceServer_Echo(t *testing.T) {
+	ctx := context.Background()
+	s := NewEchoServiceServer()
+
+	type args struct {
+		ctx context.Context
+		req *v1.StringMessage
+	}
+	tests := []struct {
+		name    string
+		s       v1.EchoServiceServer
+		args    args
+		want    *v1.StringMessage
+		wantErr bool
+	}{
+		{
+			name: "OK",
+			s:    s,
+			args: args{
+				ctx: ctx,
+				req: &v1.StringMessage{
+					Api:   "v1",
+					Value: "go test",
+				},
+			},
+			want: &v1.StringMessage{
+				Api:   "v1",
+				Value: "go test",
+			},
+		},
+		{
+			name: "Unsupported API",
+			s:    s,
+			args: args{
+				ctx: ctx,
+				req: &v1.StringMessage{
+					Value: "go test",
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, item := range tests {
+		t.Run(item.name, func(t *testing.T) {
+			got, err := item.s.Echo(item.args.ctx, item.args.req)
+			if (err != nil) != item.wantErr {
+				t.Errorf("echoServiceServer.Echo() error = %v, wantErr %v", err, item.wantErr)
+				return
+			}
+			if err == nil && !reflect.DeepEqual(got, item.want) {
+				t.Errorf("echoServiceServer.Echo() = %v, want %v", got, item.want)
+			}
+		})
+	}
+}
