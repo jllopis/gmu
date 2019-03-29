@@ -39,9 +39,9 @@ service {{.ServiceName}}Service {
         };
     }
 
-    rpc GetGlobalServiceStatus(google.protobuf.Empty) returns (ServerStatusMessage) {
+	rpc GetVersion(google.protobuf.Empty) returns (VersionMessage) {
         option (google.api.http) = {
-            get: "/v1/status"
+            get: "/v1/version"
         };
     }
 }
@@ -50,11 +50,11 @@ message ServerTimeMessage {
     int64 value = 1;
 }
 
-enum ServerStatus {
-    KO = 0;
-    OK = 1;
-}
-
-message ServerStatusMessage {
-    ServerStatus status = 1;
+// Version returns the current API version
+message VersionMessage {
+	string Name = 1;
+	string Version = 2;
+	string APIVersion = 3;
+	string GitCommit = 4;
+	string BuildDate = 5;
 }

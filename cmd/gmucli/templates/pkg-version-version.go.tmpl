@@ -1,0 +1,17 @@
+package version
+
+const (
+	// Name of the service
+	Name = "{{ .ServiceName }}"
+	// APIVersion of the API this service provide
+	APIVersion = "{{ .ApiVersion }}"
+)
+
+var (
+	// Version is the current {{ .ProjectName }} version in SemVer format
+	Version = "v0.0.1"
+	// BuildDate represents the date this service was built
+	BuildDate string
+	// GitCommit is the hash of the git commit
+	GitCommit string
+)

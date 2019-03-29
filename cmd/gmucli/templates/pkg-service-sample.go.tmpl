@@ -1,14 +1,16 @@
 package v1
 
 import (
-	"fmt"
 	"context"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"github.com/golang/protobuf/ptypes/empty"
 
 	"{{ .PackageName }}/pkg/api/{{ .ApiVersion }}"
 	"{{ .PackageName }}/pkg/logger"
+	"{{ .PackageName }}/pkg/version"
 )
 
 const (
@@ -16,15 +18,15 @@ const (
 	apiVersion = "{{ .ApiVersion }}"
 )
 
-type {{ .ServiceName}}ServiceServer struct{}
+type {{ .ServiceName | ToLower }}ServiceServer struct{}
 
-// New{{ .ServiceName}}ServiceServer creates ToDo service
-func New{{ .ServiceName}}ServiceServer() v1.EchoServiceServer {
-	return &{{ .ServiceName}}ServiceServer{}
+// New{{ .ServiceName }}ServiceServer creates ToDo service
+func New{{ .ServiceName}}ServiceServer() {{ .ApiVersion }}.{{ .ServiceName}}ServiceServer {
+	return &{{ .ServiceName | ToLower }}ServiceServer{}
 }
 
 // checkAPI checks if the API version requested by client is supported by server
-func (e *{{ .ServiceName}}ServiceServer) checkAPI(api string) error {
+func (e *{{ .ServiceName | ToLower }}ServiceServer) checkAPI(api string) error {
 	// API version is "" means use current version of the service
 	if len(api) > 0 {
 		if apiVersion != api {
@@ -35,11 +37,24 @@ func (e *{{ .ServiceName}}ServiceServer) checkAPI(api string) error {
 	return nil
 }
 
-func (e *{{ .ServiceName}}ServiceServer) Echo(ctx context.Context, msg *v1.StringMessage) (*v1.StringMessage, error) {
-	logger.Log.Debug(fmt.Sprintf("got request: <'%+v'>", msg))
-	// check if the API version requested by client is supported by server
-	if err := e.checkAPI(msg.Api); err != nil {
-		return nil, err
-	}
-	return msg, nil
+// GetServerTime return the server time in nanoseconds at UTC time zone
+func (s *{{ .ServiceName | ToLower }}ServiceServer) GetServerTime(ctx context.Context, empty *empty.Empty) (*{{ .ApiVersion }}.ServerTimeMessage, error) {
+	logger.Log.Debug("[GetServerTime] got request")
+	// // check if the API version requested by client is supported by server
+	// if err := s.checkAPI(msg.Api); err != nil {
+	// 	return nil, err
+	// }
+	return &{{ .ApiVersion }}.ServerTimeMessage{Value: time.Now().UTC().UnixNano()}, nil
+}
+
+
+// GetVersion returns the current Service and API Version with git commit and build date if available
+func (s *{{ .ServiceName | ToLower }}ServiceServer) GetVersion(ctx context.Context, empty *empty.Empty) (*{{ .ApiVersion }}.VersionMessage, error) {
+	return &{{ .ApiVersion }}.VersionMessage{
+		Name: version.Name,
+		Version:    version.Version,
+		APIVersion: version.APIVersion,
+		GitCommit:  version.GitCommit,
+		BuildDate:  version.BuildDate,
+	}, nil
 }

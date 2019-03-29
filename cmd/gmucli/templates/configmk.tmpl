@@ -6,3 +6,12 @@ BLDDATE=$(shell date -u +%Y%m%dT%H%M%S)
 VERSION ?= $(shell git describe --tags --always --dirty)
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
 API_VERSION="{{.ApiVersion}}"
+LDFLAGS=" -s -X {{ .PackageName }}/pkg/version.Name=$(BINNAME) -X {{ .PackageName }}/pkg/version.BuildDate=$(BLDDATE) -X {{ .PackageName }}/pkg/version.Version=$(VERSION) -X {{ .PackageName }}/pkg/version.APIVersion=$(API_VERSION) -X {{ .PackageName }}/pkg/version.GitCommit=$(GIT_COMMIT)"
+SERVER_SRCS = $(wildcard *.go ./cmd/server/*.go)
+GRPC_CLI_SRCS = $(wildcard *.go ./cmd/client-grpc/*.go)
+REST_CLI_SRCS = $(wildcard *.go ./cmd/client-rest/*.go)
+OS=$(shell uname -s | tr "[:upper:]" "[:lower:]")
+
+SRV_BINNAME="{{ .ProjectName }}"
+GRPC_CLI_BINNAME="{{ .ProjectName }}_grpc_cli"
+REST_CLI_BINNAME="{{ .ProjectName }}_rest_cli"

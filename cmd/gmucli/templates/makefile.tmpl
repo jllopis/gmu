@@ -6,6 +6,30 @@ include config.mk
 export PATH := $(TOOLSDIR):$(PATH)
 export GO111MODULE := auto
 
+$(BLDDIR):
+	mkdir ${BLDDIR} || true
+
+server: $(BLDDIR) ## build amd64 binary. OS defaults to host OS. This can be overriden setting 'OS' env var (make bin OS=linux)
+	$(shell CGO_ENABLED=0 GOOS=${OS} GOARCH=amd64 \
+        go build -ldflags ${LDFLAGS} -a -installsuffix cgo \
+        -o ${BLDDIR}/${SRV_BINNAME}_${VERSION}_${OS}_amd64.bin ${SERVER_SRCS} \
+        && chmod +x ${BLDDIR}/${SRV_BINNAME}_${VERSION}_${OS}_amd64.bin \
+        )
+
+grpc-cli: $(BLDDIR) ## builds the gRPC client amd64 binary. OS defaults to host OS. This can be overriden setting 'OS' env var (make bin OS=linux)
+	$(shell CGO_ENABLED=0 GOOS=${OS} GOARCH=amd64 \
+        go build -ldflags ${LDFLAGS} -a -installsuffix cgo \
+        -o ${BLDDIR}/${GRPC_CLI_BINNAME}_${VERSION}_${OS}_amd64.bin ${GRPC_CLI_SRCS} \
+        && chmod +x ${BLDDIR}/${GRPC_CLI_BINNAME}_${VERSION}_${OS}_amd64.bin \
+        )
+
+rest-cli: $(BLDDIR) ## builds the REST client amd64 binary. OS defaults to host OS. This can be overriden setting 'OS' env var (make bin OS=linux)
+	$(shell CGO_ENABLED=0 GOOS=${OS} GOARCH=amd64 \
+        go build -ldflags ${LDFLAGS} -a -installsuffix cgo \
+        -o ${BLDDIR}/${REST_CLI_BINNAME}_${VERSION}_${OS}_amd64.bin ${REST_CLI_SRCS} \
+        && chmod +x ${BLDDIR}/${REST_CLI_BINNAME}_${VERSION}_${OS}_amd64.bin \
+        )
+
 proto: ## compiles the proto files into pkg/api/v1
 	@./third_party/protoc-gen.sh
 
@@ -25,8 +49,12 @@ tools/protoc-gen-swagger:
 update-protos: ## updates proto for googleapis and grpc-gateway
 	@./scripts/get-ext-protos
 
-run-server:
-	./server -grpc-port=9090 -http-port=8080 -log-level=-1 -log-time-format=2006-01-02T15:04:05.999999999Z07:00
+run-server: server ## build and run the server for testing
+	${BLDDIR}/${SRV_BINNAME}_${VERSION}_${OS}_amd64.bin \
+            -grpc-port=9090 \
+            -http-port=8080 \
+            -log-level=-1 \
+            -log-time-format=2006-01-02T15:04:05.999999999Z07:00
 
 clean: ## remove the generated files to start clean but keep the images
 	rm -rf $(BLDDIR)

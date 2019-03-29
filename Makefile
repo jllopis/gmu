@@ -26,8 +26,8 @@ run: bin ## force rebuild the docker image (even if they haven't changed) and ru
 	new github.com/gmu/testProjectFromMake
 
 clean: ## remove the generated files to start clean but keep the images
-	rm -rf $(BLDDIR) | true
-	rm -rf testprojectfrommake | true
+	@rm -rf $(BLDDIR) | true
+	@rm -rf testprojectfrommake | true
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(firstword $(MAKEFILE_LIST)) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
