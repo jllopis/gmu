@@ -6,24 +6,18 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"strings"
 )
 
 func main() {
 	// get configuration
-	address := flag.String("server", "http://localhost:8080", "HTTP gateway url, e.g. http://localhost:8080")
+	address := flag.String("server", "http://localhost:9000", "HTTP gateway url, e.g. http://localhost:9000")
 	flag.Parse()
 
 	var body string
 
-	// Call Create
-	resp, err := http.Post(*address+"/v1/echo", "application/json", strings.NewReader(`
-		{
-			"api":"{{ .ApiVersion }}",
-			"value": "test from rest client"
-		}`))
+	resp, err := http.Get(*address + "/v1/time")
 	if err != nil {
-		log.Fatalf("failed to call {{ .ServiceName }} service: %v", err)
+		log.Fatalf("failed to call Echo.Time service: %v", err)
 	}
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	resp.Body.Close()

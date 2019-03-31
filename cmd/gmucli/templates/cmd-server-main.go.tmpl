@@ -4,12 +4,16 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/soheilhy/cmux"
+
 	"{{ .PackageName }}/pkg/cmd"
 )
 
 func main() {
 	if err := cmd.RunServer(); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+		if err != cmux.ErrListenerClosed {
+			fmt.Fprintf(os.Stderr, "Server Error: %v\n", err)
+			os.Exit(1)
+		}
 	}
 }

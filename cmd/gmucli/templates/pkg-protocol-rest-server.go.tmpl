@@ -2,12 +2,15 @@ package rest
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/soheilhy/cmux"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
@@ -17,21 +20,26 @@ import (
 )
 
 // RunServer runs HTTP/REST gateway
-func Serve(ctx context.Context, grpcPort, httpPort string) error {
+func Serve(ctx context.Context, listen net.Listener) {
+	if listen == nil {
+		logger.Log.Fatal("rest.Serve got a nil listener")
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	mux := runtime.NewServeMux()
 	opts := []grpc.DialOption{grpc.WithInsecure()}
-	if err := v1.RegisterEchoServiceHandlerFromEndpoint(ctx, mux, "localhost:"+grpcPort, opts); err != nil {
+	port := listen.Addr().String()[strings.LastIndex(listen.Addr().String(), ":")+1:]
+	if err := v1.RegisterEchoServiceHandlerFromEndpoint(ctx, mux, "localhost:"+port, opts); err != nil {
 		logger.Log.Fatal("failed to start HTTP gateway", zap.String("reason", err.Error()))
 	}
 
+	httpSrvMux := http.NewServeMux()
+	httpSrvMux.Handle("/", middleware.AddRequestID(
+		middleware.AddLogger(logger.Log, mux)))
 	srv := &http.Server{
-		Addr:    ":" + httpPort,
-		// add handler with middleware
-		Handler: middleware.AddRequestID(
-			middleware.AddLogger(logger.Log, mux)),
+		Handler: httpSrvMux,
 	}
 
 	// graceful shutdown
@@ -41,13 +49,13 @@ func Serve(ctx context.Context, grpcPort, httpPort string) error {
 		for range c {
 			// sig is a ^C, handle it
 		}
-
 		_, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
-
 		_ = srv.Shutdown(ctx)
 	}()
 
-	logger.Log.Info("starting HTTP/REST gateway...")
-	return srv.ListenAndServe()
+	logger.Log.Info("starting HTTP/REST gateway on " + listen.Addr().String())
+	if err := srv.Serve(listen); err != cmux.ErrListenerClosed {
+		panic(err)
+	}
 }

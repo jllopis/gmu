@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/golang/protobuf/ptypes/empty"
 	"{{ .PackageName }}/pkg/api/{{ .ApiVersion }}"
 	"google.golang.org/grpc"
 )
@@ -33,9 +34,9 @@ func main() {
 	defer cancel()
 
 	// {{ .ServiceName }}
-	res1, err := c.Echo(ctx, &v1.StringMessage{Api: apiVersion, Value: "echo from test client!"})
+	res1, err := c.GetServerTime(ctx, &empty.Empty{})
 	if err != nil {
 		log.Fatalf("Create failed: %v", err)
 	}
-	log.Printf("Create result: <%+v>\n\n", res1)
+	log.Printf("Server time: <%d>\n\n", res1.GetValue())
 }

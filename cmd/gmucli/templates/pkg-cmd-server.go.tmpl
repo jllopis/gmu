@@ -4,6 +4,9 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net"
+
+	"github.com/soheilhy/cmux"
 
 	"{{ .PackageName }}/pkg/logger"
 	"{{ .PackageName }}/pkg/protocol/grpc"
@@ -13,14 +16,8 @@ import (
 
 // Config is configuration for Server
 type Config struct {
-	// gRPC server start parameters section
-	// gRPC is TCP port to listen by gRPC server
-	GRPCPort string
-
-	// HTTP/REST gateway start parameters section
-	// HTTPPort is TCP port to listen by HTTP/REST gateway
-	HTTPPort string
-
+	// Service default port shared by protocols gRPC, http
+	DefaultPort string
 	// Log parameters section
 	// LogLevel is global log level: Debug(-1), Info(0), Warn(1), Error(2), DPanic(3), Panic(4), Fatal(5)
 	LogLevel int
@@ -34,20 +31,15 @@ func RunServer() error {
 
 	// get configuration
 	var cfg Config
-	flag.StringVar(&cfg.GRPCPort, "grpc-port", "", "gRPC port to bind")
-	flag.StringVar(&cfg.HTTPPort, "http-port", "", "HTTP port to bind")
+	flag.StringVar(&cfg.DefaultPort, "port", "9000", "port to bind services")
 	flag.IntVar(&cfg.LogLevel, "log-level", 0, "Global log level")
 	flag.StringVar(&cfg.LogTimeFormat, "log-time-format", "",
 		"Print time format for logger e.g. 2006-01-02T15:04:05Z07:00")
 
 	flag.Parse()
 
-	if len(cfg.GRPCPort) == 0 {
-		return fmt.Errorf("invalid TCP port for gRPC server: '%s'", cfg.GRPCPort)
-	}
-
-	if len(cfg.HTTPPort) == 0 {
-		return fmt.Errorf("invalid TCP port for HTTP gateway: '%s'", cfg.HTTPPort)
+	if len(cfg.DefaultPort) == 0 {
+		return fmt.Errorf("invalid TCP port for server: '%s'", cfg.DefaultPort)
 	}
 
 	// initialize logger
@@ -55,12 +47,40 @@ func RunServer() error {
 		return fmt.Errorf("failed to initialize logger: %v", err)
 	}
 
+	// create the tcp muxer
+	mux, err := newCmux(nil, cfg.DefaultPort)
+	if err != nil {
+		logger.Log.Fatal("cant create tcp listener for CMux, error:" + err.Error())
+	}
+	// Match connections in order:
+	// First grpc, and otherwise HTTP.
+	// grpcListener := mux.Match(cmux.HTTP2HeaderFieldPrefix("content-type", "application/grpc"))
+	grpcListener := mux.MatchWithWriters(cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"))
+	// Otherwise, we match it againts HTTP1 methods. If matched,
+	// it is sent through the "httpl" listener.
+	// httpListener := mux.Match(cmux.HTTP1Fast())
+	// Any significa que no hay coincidencia previa
+	httpListener := mux.Match(cmux.Any())
+
 	api := {{ .ApiVersion }}.New{{.ServiceName}}ServiceServer()
 
+	logger.Log.Info("service started on port " + cfg.DefaultPort)
+// run gRPC gateway
+	go grpc.Serve(ctx, api, grpcListener)
 	// run HTTP gateway
-	go func() {
-		_ = rest.Serve(ctx, cfg.GRPCPort, cfg.HTTPPort)
-	}()
+	go rest.Serve(ctx, httpListener)
 
-	return grpc.Serve(ctx, api, cfg.GRPCPort)
+	return mux.Serve()
+}
+
+func newCmux(l net.Listener, port string) (cmux.CMux, error) {
+	var err error
+	if l == nil {
+		// Create the main listener.
+		l, err = net.Listen("tcp", ":"+port)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return cmux.New(l), nil
 }

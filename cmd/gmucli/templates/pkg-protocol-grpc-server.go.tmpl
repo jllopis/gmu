@@ -10,16 +10,17 @@ import (
 	"{{ .PackageName }}/pkg/logger"
 	"{{ .PackageName }}/pkg/protocol/grpc/middleware"
 
+	"github.com/soheilhy/cmux"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
 
+
 // Serve runs gRPC service
 // TODO: passar en conter de {{ .ApiVersion }}.EchoServiceServer un array []ServiceRegistrator (y en rest ServiceGwRegistrator) per permetre més d'un servei
-func Serve(ctx context.Context, api {{ .ApiVersion }}.EchoServiceServer, port string) error {
-	listen, err := net.Listen("tcp", ":"+port)
-	if err != nil {
-		return err
+func Serve(ctx context.Context, api {{ .ApiVersion }}.EchoServiceServer, listen net.Listener) {
+	if listen == nil {
+		logger.Log.Fatal("grpc.Serve got a nil listener")
 	}
 
 	// gRPC server statup options
@@ -39,9 +40,7 @@ func Serve(ctx context.Context, api {{ .ApiVersion }}.EchoServiceServer, port st
 		for range c {
 			// sig is a ^C, handle it
 			logger.Log.Warn("shutting down gRPC server...")
-
 			server.GracefulStop()
-
 			<-ctx.Done()
 		}
 	}()
@@ -50,6 +49,8 @@ func Serve(ctx context.Context, api {{ .ApiVersion }}.EchoServiceServer, port st
 	reflection.Register(server)
 
 	// start gRPC server
-	logger.Log.Info("starting gRPC server...")
-	return server.Serve(listen)
+	logger.Log.Info("starting gRPC server on "+listen.Addr().String())
+	if err := server.Serve(listen); err != cmux.ErrListenerClosed {
+		panic(err)
+	}
 }
