@@ -23,6 +23,8 @@ type Config struct {
 	LogLevel int
 	// LogTimeFormat is print time format for logger e.g. 2006-01-02T15:04:05Z07:00
 	LogTimeFormat string
+	// set max concurrent streams served by gRPC server
+	GrpcMaxConcurrentStreams int
 }
 
 // RunServer runs gRPC server and HTTP gateway
@@ -33,9 +35,8 @@ func RunServer() error {
 	var cfg Config
 	flag.StringVar(&cfg.DefaultPort, "port", "9000", "port to bind services")
 	flag.IntVar(&cfg.LogLevel, "log-level", 0, "Global log level")
-	flag.StringVar(&cfg.LogTimeFormat, "log-time-format", "",
-		"Print time format for logger e.g. 2006-01-02T15:04:05Z07:00")
-
+	flag.StringVar(&cfg.LogTimeFormat, "log-time-format", "", "Print time format for logger e.g. 2006-01-02T15:04:05Z07:00")
+	flag.IntVar(&cfg.GrpcMaxConcurrentStreams, "grpc-max-concurrent-streams", 250, "grpc server option MaxConcurrentStreams")
 	flag.Parse()
 
 	if len(cfg.DefaultPort) == 0 {
@@ -65,8 +66,8 @@ func RunServer() error {
 	api := {{ .ApiVersion }}.New{{.ServiceName}}ServiceServer()
 
 	logger.Log.Info("service started on port " + cfg.DefaultPort)
-// run gRPC gateway
-	go grpc.Serve(ctx, api, grpcListener)
+	// run gRPC gateway
+	go grpc.Serve(ctx, api, grpcListener, cfg.MaxConcurrentStreams)
 	// run HTTP gateway
 	go rest.Serve(ctx, httpListener)
 

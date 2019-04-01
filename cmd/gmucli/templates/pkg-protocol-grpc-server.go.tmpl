@@ -18,13 +18,17 @@ import (
 
 // Serve runs gRPC service
 // TODO: passar en conter de {{ .ApiVersion }}.EchoServiceServer un array []ServiceRegistrator (y en rest ServiceGwRegistrator) per permetre més d'un servei
-func Serve(ctx context.Context, api {{ .ApiVersion }}.EchoServiceServer, listen net.Listener) {
+func Serve(ctx context.Context, api {{ .ApiVersion }}.EchoServiceServer, listen net.Listener, mcs int) {
 	if listen == nil {
 		logger.Log.Fatal("grpc.Serve got a nil listener")
 	}
 
 	// gRPC server statup options
-	opts := []grpc.ServerOption{}
+	// if len(opts) < 1 { 
+		opts := []grpc.ServerOption{
+			grpc.MaxConcurrentStreams(uint32(mcs)),
+		}
+	// }
 
 	// add middleware
 	opts = middleware.AddLogging(logger.Log, opts)
