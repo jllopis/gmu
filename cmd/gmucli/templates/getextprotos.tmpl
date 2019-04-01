@@ -1,4 +1,6 @@
-#!/usr/bin/env bash -e
+#!/usr/bin/env bash
+
+set -o errexit
 
 # Get googleapis protos for grpc-gateway
 if [[ ! -d "third_party/google/api" ]]; then
