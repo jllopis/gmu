@@ -67,7 +67,7 @@ func RunServer() error {
 
 	logger.Log.Info("service started on port " + cfg.DefaultPort)
 	// run gRPC gateway
-	go grpc.Serve(ctx, api, grpcListener, cfg.MaxConcurrentStreams)
+	go grpc.Serve(ctx, api, grpcListener, cfg.GrpcMaxConcurrentStreams)
 	// run HTTP gateway
 	go rest.Serve(ctx, httpListener)
 
