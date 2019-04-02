@@ -25,6 +25,7 @@ var (
 
 	tmplFuncMap = template.FuncMap{
 		"ToLower": strings.ToLower,
+		"ToUpper": strings.ToUpper,
 	}
 
 	packageName   string

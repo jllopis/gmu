@@ -8,10 +8,11 @@ import (
 
 	"github.com/soheilhy/cmux"
 
+	api{{ .ApiVersion | ToUpper }} "{{ .PackageName }}/pkg/api/{{ .ApiVersion }}"
 	"{{ .PackageName }}/pkg/logger"
 	"{{ .PackageName }}/pkg/protocol/grpc"
 	"{{ .PackageName }}/pkg/protocol/rest"
-	"{{ .PackageName }}/pkg/service/{{ .ApiVersion }}"
+	service{{ .ApiVersion | ToUpper }} "{{ .PackageName }}/pkg/service/{{ .ApiVersion }}"
 )
 
 // Config is configuration for Server
@@ -63,11 +64,25 @@ func RunServer() error {
 	// Any significa que no hay coincidencia previa
 	httpListener := mux.Match(cmux.Any())
 
-	api := {{ .ApiVersion }}.New{{.ServiceName}}ServiceServer()
-
 	logger.Log.Info("service started on port " + cfg.DefaultPort)
 	// run gRPC gateway
+<<<<<<< HEAD
 	go grpc.Serve(ctx, api, grpcListener, cfg.GrpcMaxConcurrentStreams)
+||||||| merged common ancestors
+	go grpc.Serve(ctx, api, grpcListener, cfg.MaxConcurrentStreams)
+=======
+	grpcSrv := grpc.New(grpcListener).
+		SetMaxConcurrentStreams(cfg.GrpcMaxConcurrentStreams).
+		UseReflection().
+		UseLogging()
+
+	// Register gRPC services
+	serviceRegistrator := func() {
+		api{{ .ApiVersion | ToUpper }}.Register{{.ServiceName}}ServiceServer(grpcSrv.GetGrpcServer(), service{{ .ApiVersion | ToUpper }}.New{{.ServiceName}}ServiceServer())
+	}
+	grpcSrv.Register(serviceRegistrator)
+	go grpcSrv.Serve(ctx)
+>>>>>>> added service and interceptors registrators
 	// run HTTP gateway
 	go rest.Serve(ctx, httpListener)
 

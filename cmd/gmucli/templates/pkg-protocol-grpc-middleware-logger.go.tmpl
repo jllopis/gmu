@@ -43,3 +43,18 @@ func AddLogging(logger *zap.Logger, opts []grpc.ServerOption) []grpc.ServerOptio
 
 	return opts
 }
+
+func AddUnaryLogging(logger *zap.Logger) grpc.UnaryServerInterceptor {
+	return grpc_middleware.ChainUnaryServer(
+		grpc_ctxtags.UnaryServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
+		grpc_zap.UnaryServerInterceptor(logger),
+	)
+}
+
+func AddStreamLogging(logger *zap.Logger) grpc.StreamServerInterceptor {
+	// Add stream interceptor (added as an example here)
+	return grpc_middleware.ChainStreamServer(
+		grpc_ctxtags.StreamServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
+		grpc_zap.StreamServerInterceptor(logger),
+	)
+}
