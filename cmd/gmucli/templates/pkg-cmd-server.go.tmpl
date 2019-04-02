@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/soheilhy/cmux"
+	google_grpc "google.golang.org/grpc"
 
 	api{{ .ApiVersion | ToUpper }} "{{ .PackageName }}/pkg/api/{{ .ApiVersion }}"
 	"{{ .PackageName }}/pkg/logger"
@@ -26,6 +27,10 @@ type Config struct {
 	LogTimeFormat string
 	// set max concurrent streams served by gRPC server
 	GrpcMaxConcurrentStreams int
+	// Expose Prometheus metrics
+	UsePrometheus bool
+	// endpoint for Prometheus metrics
+	PrometheusEndpoint string
 }
 
 // RunServer runs gRPC server and HTTP gateway
@@ -38,6 +43,8 @@ func RunServer() error {
 	flag.IntVar(&cfg.LogLevel, "log-level", 0, "Global log level")
 	flag.StringVar(&cfg.LogTimeFormat, "log-time-format", "", "Print time format for logger e.g. 2006-01-02T15:04:05Z07:00")
 	flag.IntVar(&cfg.GrpcMaxConcurrentStreams, "grpc-max-concurrent-streams", 250, "grpc server option MaxConcurrentStreams")
+	flag.BoolVar(&cfg.UsePrometheus, "use-prometheus", true, "expose prometheus metrics")
+	flag.StringVar(&cfg.PrometheusEndpoint, "prometheus-endpoint", "/metrics", "endpoint to serve prometheus metrics. Only available if UsePrometheus()")
 	flag.Parse()
 
 	if len(cfg.DefaultPort) == 0 {
@@ -70,15 +77,26 @@ func RunServer() error {
 		SetMaxConcurrentStreams(cfg.GrpcMaxConcurrentStreams).
 		UseReflection().
 		UseLogging()
-
+	
 	// Register gRPC services
 	serviceRegistrator := func() {
 		api{{ .ApiVersion | ToUpper }}.Register{{.ServiceName}}ServiceServer(grpcSrv.GetGrpcServer(), service{{ .ApiVersion | ToUpper }}.New{{.ServiceName}}ServiceServer())
 	}
 	grpcSrv.Register(serviceRegistrator)
+
 	go grpcSrv.Serve(ctx)
+
 	// run HTTP gateway
-	go rest.Serve(ctx, httpListener)
+	restSrv := rest.New(httpListener, nil).WithCORS().LogRequests()
+	restSrv.Register(func(){
+		api{{ .ApiVersion | ToUpper }}.Register{{.ServiceName}}ServiceHandlerFromEndpoint(context.Background(), restSrv.GetRuntimeMux(), "localhost:"+cfg.DefaultPort, []google_grpc.DialOption{google_grpc.WithInsecure()})
+	})
+
+	if cfg.UsePrometheus {
+		grpcSrv.UsePrometheus(true, restSrv.GetHttpMux(), cfg.PrometheusEndpoint)
+	}
+
+	go restSrv.Serve(ctx)
 
 	return mux.Serve()
 }

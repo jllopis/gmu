@@ -6,40 +6,72 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/soheilhy/cmux"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
 
-	"{{ .PackageName }}/pkg/api/{{ .ApiVersion }}"
 	"{{ .PackageName }}/pkg/logger"
 	"{{ .PackageName }}/pkg/protocol/rest/middleware"
 )
 
-// RunServer runs HTTP/REST gateway
-func Serve(ctx context.Context, listen net.Listener) {
+
+type RestServer struct {
+	listener             net.Listener
+	httpSrv              *http.Server
+	httpMux              *http.ServeMux
+	gwMux                *runtime.ServeMux
+	gwRegistrators       []ServiceRegistrator
+	cors                 bool
+	logRequests          bool
+}
+
+type GwOptions struct {
+	WithMarshaler             runtime.Marshaler
+	MarshalerMime             string
+	WithIncomingHeaderMatcher runtime.HeaderMatcherFunc
+	WithOutgoingHeaderMatcher runtime.HeaderMatcherFunc
+}
+
+func New(listen net.Listener, options *GwOptions) *RestServer {
 	if listen == nil {
-		logger.Log.Fatal("rest.Serve got a nil listener")
+		logger.Log.Fatal("rest.New got a nil listener")
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	mux := runtime.NewServeMux()
-	opts := []grpc.DialOption{grpc.WithInsecure()}
-	port := listen.Addr().String()[strings.LastIndex(listen.Addr().String(), ":")+1:]
-	if err := v1.RegisterEchoServiceHandlerFromEndpoint(ctx, mux, "localhost:"+port, opts); err != nil {
-		logger.Log.Fatal("failed to start HTTP gateway", zap.String("reason", err.Error()))
+	muxopts := []runtime.ServeMuxOption{}
+	if options != nil {
+		if options.WithMarshaler != nil {
+			if options.MarshalerMime == "" {
+				options.MarshalerMime = runtime.MIMEWildcard
+			}
+			muxopts = append(muxopts, runtime.WithMarshalerOption(options.MarshalerMime, options.WithMarshaler))
+		}
+		if options.WithIncomingHeaderMatcher != nil {
+			muxopts = append(muxopts, runtime.WithIncomingHeaderMatcher(options.WithIncomingHeaderMatcher))
+		}
+		if options.WithOutgoingHeaderMatcher != nil {
+			muxopts = append(muxopts, runtime.WithOutgoingHeaderMatcher(options.WithOutgoingHeaderMatcher))
+		}
 	}
+	return &RestServer{
+		listener: listen,
+		gwMux: runtime.NewServeMux(muxopts...),
+		httpMux: http.NewServeMux(),
+	}
+}
+// RunServer runs HTTP/REST gateway
+func (r *RestServer) Serve(ctx context.Context) {
+	r.registerServices()
 
-	httpSrvMux := http.NewServeMux()
-	httpSrvMux.Handle("/", middleware.AddRequestID(
-		middleware.AddLogger(logger.Log, mux)))
-	srv := &http.Server{
-		Handler: httpSrvMux,
+	if r.logRequests {
+		r.httpMux.Handle("/", middleware.AddRequestID(
+			middleware.AddLogger(logger.Log,
+				r.restHandler(r.gwMux))))
+	} else {
+		r.httpMux.Handle("/", r.restHandler(r.gwMux))
+	}
+	r.httpSrv = &http.Server{
+		Handler: r.httpMux,
 	}
 
 	// graceful shutdown
@@ -51,11 +83,61 @@ func Serve(ctx context.Context, listen net.Listener) {
 		}
 		_, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
-		_ = srv.Shutdown(ctx)
+		_ = r.httpSrv.Shutdown(ctx)
 	}()
 
-	logger.Log.Info("starting HTTP/REST gateway on " + listen.Addr().String())
-	if err := srv.Serve(listen); err != cmux.ErrListenerClosed {
+	logger.Log.Info("starting HTTP/REST gateway on " + r.listener.Addr().String())
+	if err := r.httpSrv.Serve(r.listener); err != cmux.ErrListenerClosed {
 		panic(err)
 	}
+}
+
+func (r *RestServer) restHandler(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if r.cors {
+			enableCors(&w)
+			if req.Method == "OPTIONS" {
+				return
+			}
+		}
+		handler.ServeHTTP(w, req)
+	})
+}
+
+func enableCors(w *http.ResponseWriter) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+}
+
+func (r *RestServer) GetRuntimeMux() *runtime.ServeMux {
+	return r.gwMux
+}
+
+func (r *RestServer) GetHttpMux() *http.ServeMux {
+	return r.httpMux
+}
+
+type (
+	ServiceRegistrator func()
+)
+
+func (r *RestServer) Register(sg ServiceRegistrator) {
+	r.gwRegistrators = append(r.gwRegistrators, sg)
+}
+
+func (r *RestServer) registerServices() {
+	for _, s := range r.gwRegistrators {
+			s()
+	}
+}
+
+func (r *RestServer) WithCORS() *RestServer {
+	r.cors = true
+	return r
+}
+
+func (r *RestServer) LogRequests() *RestServer {
+	r.logRequests = true
+	return r
 }
