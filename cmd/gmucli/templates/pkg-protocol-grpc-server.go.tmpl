@@ -7,7 +7,6 @@ import (
 	"os/signal"
 
 	"{{ .PackageName }}/pkg/logger"
-	"{{ .PackageName }}/pkg/protocol/grpc/middleware"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/soheilhy/cmux"
@@ -25,22 +24,6 @@ type GrpcServer struct {
 	streamInter              []grpc.StreamServerInterceptor
 	interceptorInitializers  []InterceptorInitializer
 	grpcServicesRegistrators []ServiceRegistrator
-}
-
-type (
-	ServiceRegistrator func()
-)
-
-// InterceptorInitializer defines an interface with the methods that
-// should be implemented to setup an interceptor.
-//
-// InterceptorInitializers will be added to GrpcServer.InterceptorInitializers slice
-// and when the server is created, this array will be traversed and for every item the
-// method Init(*GrpcServer) will be called.
-//
-// This will register the intercepto into the GrpcSrv.
-type InterceptorInitializer interface {
-	Init(*GrpcServer)
 }
 
 func New(listen net.Listener) *GrpcServer {
@@ -95,53 +78,7 @@ func (g *GrpcServer) Serve(ctx context.Context) {
 	}
 }
 
-
-func (g *GrpcServer) Register(sr ServiceRegistrator) {
-	g.grpcServicesRegistrators = append(g.grpcServicesRegistrators, sr)
-}
-
-// UseUnaryInterceptor adds a unary interceptor to the RPC server
-func (g *GrpcServer) UseUnaryInterceptor(inter grpc.UnaryServerInterceptor) {
-	g.unaryInter = append(g.unaryInter, inter)
-}
-
-// UseStreamInterceptor adds a stream interceptor to the RPC server
-func (g *GrpcServer) UseStreamInterceptor(inter grpc.StreamServerInterceptor) {
-	g.streamInter = append(g.streamInter, inter)
-}
-
-func (g *GrpcServer) RegisterInterceptorInitializer(i InterceptorInitializer) {
-	g.interceptorInitializers = append(g.interceptorInitializers, i)
-}
-
-func (g *GrpcServer) initializeInterceptors() {
-	for _, i := range g.interceptorInitializers {
-		i.Init(g)
-	}
-}
-
-func (g *GrpcServer) registerGrpcServices() {
-	for _, s := range g.grpcServicesRegistrators {
-		s()
-	}
-}
-
-func (g *GrpcServer) SetMaxConcurrentStreams(n int) *GrpcServer {
-	g.maxConcurrentStreams = n
-	return g
-}
-
-func (g *GrpcServer) UseReflection() *GrpcServer {
-	g.grpcReflection = true
-	return g
-}
-
 func (g *GrpcServer) GetGrpcServer() *grpc.Server {
 	return g.grpcSrv
 }
 
-func (g *GrpcServer) UseLogging() *GrpcServer {
-	g.unaryInter = append([]grpc.UnaryServerInterceptor{middleware.AddUnaryLogging(logger.Log)}, g.unaryInter...)
-	g.streamInter = append([]grpc.StreamServerInterceptor{middleware.AddStreamLogging(logger.Log)}, g.streamInter...)
-	return g
-}

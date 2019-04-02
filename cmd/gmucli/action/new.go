@@ -110,10 +110,15 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 	protocold := pkgd.addDirectory("protocol")
 	pgrpcd := protocold.addDirectory("grpc")
 	pgrpcd.addFile("server.go", "pkg-protocol-grpc-server.go.tmpl", false)
+	pgrpcd.addFile("server_interceptors.go", "pkg-protocol-grpc-server-interceptors.go.tmpl", false)
+	pgrpcd.addFile("server_options.go", "pkg-protocol-grpc-server-options.go.tmpl", false)
+
 	gmidd := pgrpcd.addDirectory("middleware")
 	gmidd.addFile("logger.go", "pkg-protocol-grpc-middleware-logger.go.tmpl", false)
+
 	prestd := protocold.addDirectory("rest")
 	prestd.addFile("server.go", "pkg-protocol-rest-server.go.tmpl", false)
+
 	rmidd := prestd.addDirectory("middleware")
 	rmidd.addFile("logger.go", "pkg-protocol-rest-middleware-logger.go.tmpl", false)
 	rmidd.addFile("request-id.go", "pkg-protocol-rest-middleware-request-id.go.tmpl", false)

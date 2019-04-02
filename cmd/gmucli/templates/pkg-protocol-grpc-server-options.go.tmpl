@@ -1,0 +1,24 @@
+package grpc
+
+import (
+	"{{ .PackageName }}/pkg/logger"
+	"{{ .PackageName }}/pkg/protocol/grpc/middleware"
+
+	"google.golang.org/grpc"
+)
+
+func (g *GrpcServer) SetMaxConcurrentStreams(n int) *GrpcServer {
+	g.maxConcurrentStreams = n
+	return g
+}
+
+func (g *GrpcServer) UseReflection() *GrpcServer {
+	g.grpcReflection = true
+	return g
+}
+
+func (g *GrpcServer) UseLogging() *GrpcServer {
+	g.unaryInter = append([]grpc.UnaryServerInterceptor{middleware.AddUnaryLogging(logger.Log)}, g.unaryInter...)
+	g.streamInter = append([]grpc.StreamServerInterceptor{middleware.AddStreamLogging(logger.Log)}, g.streamInter...)
+	return g
+}
