@@ -66,11 +66,6 @@ func RunServer() error {
 
 	logger.Log.Info("service started on port " + cfg.DefaultPort)
 	// run gRPC gateway
-<<<<<<< HEAD
-	go grpc.Serve(ctx, api, grpcListener, cfg.GrpcMaxConcurrentStreams)
-||||||| merged common ancestors
-	go grpc.Serve(ctx, api, grpcListener, cfg.MaxConcurrentStreams)
-=======
 	grpcSrv := grpc.New(grpcListener).
 		SetMaxConcurrentStreams(cfg.GrpcMaxConcurrentStreams).
 		UseReflection().
@@ -82,7 +77,6 @@ func RunServer() error {
 	}
 	grpcSrv.Register(serviceRegistrator)
 	go grpcSrv.Serve(ctx)
->>>>>>> added service and interceptors registrators
 	// run HTTP gateway
 	go rest.Serve(ctx, httpListener)
 
