@@ -186,7 +186,12 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 	project.doPostActions()
 
 	// fmt.Println(rd)
-	fmt.Println("Done!")
+	fmt.Printf("\n%s\n\n", color.Green("DONE!").Bold())
+	fmt.Printf("Your project %s has been created at %s\n\n\n",
+		color.Bold(project.ProjectName).Green(),
+		color.Bold(project.BasePath).Green(),
+	)
+	fmt.Printf("Find some info about running the project in the %s file at the root of your project.\n\n", color.Bold("README.md"))
 }
 
 func getBasePath(path string) (string, error) {
@@ -242,6 +247,7 @@ type File struct {
 }
 
 func (p *Project) Flush() error {
+	fmt.Printf("\t%s  %s\n", color.Green("create"), p.ProjectName)
 	err := Mkdir(filepath.Join(p.BasePath))
 	if err != nil {
 		return err
@@ -297,10 +303,10 @@ func (p *Project) doPostActions() error {
 func execute(path, command string, params ...string) error {
 	var cmd *exec.Cmd
 	if len(params) > 0 {
-		fmt.Printf("\t%s  %s %v\n", color.Cyan("run"), command, params)
+		fmt.Printf("\t%s  %s %v\n", color.Green("run"), command, params)
 		cmd = exec.Command(command, params...)
 	} else {
-		fmt.Printf("\t%s  %s\n", color.Cyan("run"), command)
+		fmt.Printf("\t%s  %s\n", color.Green("run"), command)
 		cmd = exec.Command(command)
 	}
 	cmd.Dir = path
@@ -315,6 +321,8 @@ func execute(path, command string, params ...string) error {
 
 func (d *Directory) flush(p *Project) error {
 	for _, f := range d.files {
+		fmt.Printf("\t%s  %s\n", color.Green("create"), strings.TrimPrefix(f.Path, p.BasePath+"/"))
+
 		src, err := globalOptions.Box.FindString(f.Template)
 		if err != nil {
 			return err
@@ -341,6 +349,7 @@ func (d *Directory) flush(p *Project) error {
 	}
 
 	for _, g := range d.dirs {
+		fmt.Printf("\t%s  %s\n", color.Green("create"), strings.TrimPrefix(g.Path, p.BasePath+"/"))
 		err := Mkdir(g.Path)
 		if err != nil {
 			return err
