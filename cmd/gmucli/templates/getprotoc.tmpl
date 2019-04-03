@@ -25,10 +25,10 @@ fi
 ZIP="protoc-${VERSION}-${OS}-x86_64.zip"
 URL="https://github.com/google/protobuf/releases/download/v${VERSION}/${ZIP}"
 
-wget ${URL}
+wget -q ${URL}
 # Unpack the protoc binary. Later we might want to grab additional data. 
-unzip -p ${ZIP} bin/protoc > $1
-unzip ${ZIP} 'include/google/*' -d third_party
+unzip -qq -p ${ZIP} bin/protoc > $1
+unzip -qq ${ZIP} 'include/google/*' -d third_party
 mv third_party/include/google third_party && rm -rf third_party/include
 chmod +x $1
 rm ${ZIP}

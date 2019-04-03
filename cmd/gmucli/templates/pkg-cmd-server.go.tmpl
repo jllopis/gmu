@@ -12,6 +12,7 @@ import (
 	api{{ .ApiVersion | ToUpper }} "{{ .PackageName }}/pkg/api/{{ .ApiVersion }}"
 	"{{ .PackageName }}/pkg/logger"
 	"{{ .PackageName }}/pkg/protocol/grpc"
+	"{{ .PackageName }}/pkg/protocol/grpc/middleware"
 	"{{ .PackageName }}/pkg/protocol/rest"
 	service{{ .ApiVersion | ToUpper }} "{{ .PackageName }}/pkg/service/{{ .ApiVersion }}"
 )
@@ -76,7 +77,7 @@ func RunServer() error {
 	grpcSrv := grpc.New(grpcListener).
 		SetMaxConcurrentStreams(cfg.GrpcMaxConcurrentStreams).
 		UseReflection().
-		UseLogging()
+		UseLogging(&middleware.LoggingConfig{Logger: logger.Log})
 	
 	// Register gRPC services
 	serviceRegistrator := func() {
@@ -93,7 +94,11 @@ func RunServer() error {
 	})
 
 	if cfg.UsePrometheus {
-		grpcSrv.UsePrometheus(true, restSrv.GetHttpMux(), cfg.PrometheusEndpoint)
+		grpcSrv.UsePrometheus(&middleware.PrometheusInterceptorConfig{
+			HttpMux:             restSrv.GetHttpMux(),
+			Endpoint:            cfg.PrometheusEndpoint,
+			EnableTimeHistogram: true,
+		})
 	}
 
 	go restSrv.Serve(ctx)

@@ -27,5 +27,5 @@ thirdapis=( \
 )
 
 for subdir in "${!thirdapis[@]}"; do
-  wget -O third_party/${subdir} ${thirdapis[$subdir]}
+  wget -q -O third_party/${subdir} ${thirdapis[$subdir]}
 done

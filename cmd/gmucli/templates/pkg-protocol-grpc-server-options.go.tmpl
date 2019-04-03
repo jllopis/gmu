@@ -1,13 +1,9 @@
 package grpc
 
 import (
-	"net/http"
-	"{{ .PackageName }}/pkg/logger"
 	"{{ .PackageName }}/pkg/protocol/grpc/middleware"
 
-	"google.golang.org/grpc"
 	"github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func (g *GrpcServer) SetMaxConcurrentStreams(n int) *GrpcServer {
@@ -20,24 +16,19 @@ func (g *GrpcServer) UseReflection() *GrpcServer {
 	return g
 }
 
-func (g *GrpcServer) UseLogging() *GrpcServer {
-	g.unaryInter = append([]grpc.UnaryServerInterceptor{middleware.AddUnaryLogging(logger.Log)}, g.unaryInter...)
-	g.streamInter = append([]grpc.StreamServerInterceptor{middleware.AddStreamLogging(logger.Log)}, g.streamInter...)
+func (g *GrpcServer) UseLogging(config *middleware.LoggingConfig) *GrpcServer {
+	middleware.PushUnaryInterceptor(middleware.AddUnaryLogging(config.Logger))
+	middleware.PushStreamInterceptor(middleware.AddStreamLogging(config.Logger))
+	middleware.RegisterInterceptorInitializer(config)
 	return g
 }
 
-func (g *GrpcServer) UsePrometheus(enableHistogram bool, httpMux *http.ServeMux, endpoint string) *GrpcServer {
-	g.UseUnaryInterceptor(grpc_prometheus.UnaryServerInterceptor)
-	g.UseStreamInterceptor(grpc_prometheus.StreamServerInterceptor)
+func (g *GrpcServer) UsePrometheus(config *middleware.PrometheusInterceptorConfig) *GrpcServer {
+	middleware.PushUnaryInterceptor(grpc_prometheus.UnaryServerInterceptor)
+	middleware.PushStreamInterceptor(grpc_prometheus.StreamServerInterceptor)
+	middleware.RegisterInterceptorInitializer(config)
 
 	g.prometheus = true
-	g.httpMux = httpMux
-	g.prometheusEndpoint = endpoint
 
 	return g
-}
-
-func (g *GrpcServer) RegisterPrometheus() {
-	g.httpMux.Handle(g.prometheusEndpoint, promhttp.Handler())
-	grpc_prometheus.Register(g.grpcSrv)
 }

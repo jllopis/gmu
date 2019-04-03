@@ -1,0 +1,24 @@
+package middleware
+
+import (
+	"net/http"
+
+	"google.golang.org/grpc"
+
+	"github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+type PrometheusInterceptorConfig struct {
+	HttpMux             *http.ServeMux
+	Endpoint            string
+	EnableTimeHistogram bool
+}
+
+func (p *PrometheusInterceptorConfig) Init(grpcSrv *grpc.Server) {
+	if p.EnableTimeHistogram {
+		grpc_prometheus.EnableHandlingTimeHistogram()
+	}
+	p.HttpMux.Handle(p.Endpoint, promhttp.Handler())
+	grpc_prometheus.Register(grpcSrv)
+}

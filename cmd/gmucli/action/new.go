@@ -100,7 +100,7 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 	pkgd.addDirectory("api").
 		addDirectory(apiVersion)
 	pkgd.addDirectory("cmd").addFile("server.go", "pkg-cmd-server.go.tmpl", false)
-	pkgd.addDirectory("logger").addFile("logger.go", "logger.go.tmpl", false)
+	pkgd.addDirectory("logger").addFile("logger.go", "pkg-logger-logger.go.tmpl", false)
 	pkgd.addDirectory("version").addFile("version.go", "pkg-version-version.go.tmpl", false)
 
 	svcd := pkgd.addDirectory("service").addDirectory(apiVersion)
@@ -114,7 +114,9 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 	pgrpcd.addFile("server_options.go", "pkg-protocol-grpc-server-options.go.tmpl", false)
 
 	gmidd := pgrpcd.addDirectory("middleware")
+	gmidd.addFile("middleware.go", "pkg-protocol-grpc-middleware-middleware.go.tmpl", false)
 	gmidd.addFile("logger.go", "pkg-protocol-grpc-middleware-logger.go.tmpl", false)
+	gmidd.addFile("prometheus.go", "pkg-protocol-grpc-middleware-prometheus.go.tmpl", false)
 
 	prestd := protocold.addDirectory("rest")
 	prestd.addFile("server.go", "pkg-protocol-rest-server.go.tmpl", false)
@@ -152,7 +154,7 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 	}
 
 	fmt.Println("Project wil be created as:")
-	fmt.Printf("\tPackage Name: %s\n\tService Name: %s\n\tProject Name: %s\n\tProject URL: %s\n\tProject Email: %s\n\tBase Path: %s\n\tAPI Version: %s\n\tProtoc Version: %s\n\tRoot Dir: %s\n\n",
+	fmt.Printf("\tPackage Name: %s\n\tService Name: %s\n\tProject Name: %s\n\tProject URL: %s\n\tProject Email: %s\n\tBase Path: %s\n\tAPI Version: %s\n\tProtoc Version: %s\n\n",
 		color.Bold(project.PackageName),
 		color.Bold(project.ServiceName),
 		color.Bold(project.ProjectName),
@@ -161,7 +163,6 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 		color.Bold(project.BasePath),
 		color.Bold(project.ApiVersion),
 		color.Bold(project.ProtocVersion),
-		project.RootDir,
 	)
 	fmt.Fprintf(os.Stdout, "Is this OK? [%s]es/[%s]o\n",
 		color.Green("y"),

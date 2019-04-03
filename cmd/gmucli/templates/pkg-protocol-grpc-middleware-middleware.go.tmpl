@@ -1,0 +1,74 @@
+package middleware
+
+import (
+	"github.com/grpc-ecosystem/go-grpc-middleware"
+	"google.golang.org/grpc"
+)
+
+var (
+	DefaultMiddleware = &MiddleInterceptor{}
+)
+
+// InterceptorInitializer defines an interface with the methods that
+// should be implemented to setup an interceptor.
+//
+// InterceptorInitializers will be added to GrpcServer.InterceptorInitializers slice
+// and when the server is created, this array will be traversed and for every item the
+// method Init(*GrpcServer) will be called.
+//
+// This will register the intercepto into the GrpcSrv.
+type InterceptorInitializer interface {
+	Init(*grpc.Server)
+}
+
+type MiddleInterceptor struct {
+	grpcSrv     *grpc.Server
+	initialized bool
+	// Interceptors
+	unaryInter              []grpc.UnaryServerInterceptor
+	streamInter             []grpc.StreamServerInterceptor
+	interceptorInitializers []InterceptorInitializer
+}
+
+func SetGrpc(srv *grpc.Server) {
+	DefaultMiddleware.grpcSrv = srv
+	DefaultMiddleware.initialized = true
+}
+
+// UseUnaryInterceptor adds a unary interceptor to the last position in unary interceptors chain
+func AddUnaryInterceptor(inter grpc.UnaryServerInterceptor) {
+	DefaultMiddleware.unaryInter = append(DefaultMiddleware.unaryInter, inter)
+}
+
+// PushyUnaryInterceptor adds a unary interceptor to first position in unary interceptors chain
+func PushUnaryInterceptor(inter grpc.UnaryServerInterceptor) {
+	DefaultMiddleware.unaryInter = append([]grpc.UnaryServerInterceptor{inter}, DefaultMiddleware.unaryInter...)
+}
+
+// AddStreamInterceptor adds a stream interceptor to the last position in stream interceptors chain
+func AddStreamInterceptor(inter grpc.StreamServerInterceptor) {
+	DefaultMiddleware.streamInter = append(DefaultMiddleware.streamInter, inter)
+}
+
+// PushStreamInterceptor adds a stream interceptor to the first position in stream interceptors chain
+func PushStreamInterceptor(inter grpc.StreamServerInterceptor) {
+	DefaultMiddleware.streamInter = append([]grpc.StreamServerInterceptor{inter}, DefaultMiddleware.streamInter...)
+}
+
+func RegisterInterceptorInitializer(i InterceptorInitializer) {
+	DefaultMiddleware.interceptorInitializers = append(DefaultMiddleware.interceptorInitializers, i)
+}
+
+func InitializeInterceptors() {
+	for _, i := range DefaultMiddleware.interceptorInitializers {
+		i.Init(DefaultMiddleware.grpcSrv)
+	}
+}
+
+func Combine(options []grpc.ServerOption) []grpc.ServerOption {
+	grpcOpts := []grpc.ServerOption{
+		grpc_middleware.WithUnaryServerChain(DefaultMiddleware.unaryInter...),
+		grpc_middleware.WithStreamServerChain(DefaultMiddleware.streamInter...),
+	}
+	return append(options, grpcOpts...)
+}

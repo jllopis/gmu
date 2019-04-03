@@ -10,6 +10,20 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+// Shared options for the logger, with a custom gRPC code to log level function.
+var grpcZapOptions = []grpc_zap.Option{
+	grpc_zap.WithLevels(codeToLevel),
+}
+
+type LoggingConfig struct {
+	Logger *zap.Logger
+}
+
+func (lc *LoggingConfig) Init(grpcSrv *grpc.Server) {
+	// Make sure that log statements internal to gRPC library are logged using the zapLogger as well.
+	grpc_zap.ReplaceGrpcLogger(lc.Logger)
+}
+
 // codeToLevel redirects OK to DEBUG level logging instead of INFO
 // This is example how you can log several gRPC code results
 func codeToLevel(code codes.Code) zapcore.Level {
@@ -20,41 +34,17 @@ func codeToLevel(code codes.Code) zapcore.Level {
 	return grpc_zap.DefaultCodeToLevel(code)
 }
 
-// AddLogging returns grpc.Server config option that turn on logging.
-func AddLogging(logger *zap.Logger, opts []grpc.ServerOption) []grpc.ServerOption {
-	// Shared options for the logger, with a custom gRPC code to log level function.
-	o := []grpc_zap.Option{
-		grpc_zap.WithLevels(codeToLevel),
-	}
-	// Make sure that log statements internal to gRPC library are logged using the zapLogger as well.
-	grpc_zap.ReplaceGrpcLogger(logger)
-
-	// Add unary interceptor
-	opts = append(opts, grpc_middleware.WithUnaryServerChain(
-		grpc_ctxtags.UnaryServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
-		grpc_zap.UnaryServerInterceptor(logger, o...),
-	))
-
-	// Add stream interceptor (added as an example here)
-	opts = append(opts, grpc_middleware.WithStreamServerChain(
-		grpc_ctxtags.StreamServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
-		grpc_zap.StreamServerInterceptor(logger, o...),
-	))
-
-	return opts
-}
-
 func AddUnaryLogging(logger *zap.Logger) grpc.UnaryServerInterceptor {
 	return grpc_middleware.ChainUnaryServer(
 		grpc_ctxtags.UnaryServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
-		grpc_zap.UnaryServerInterceptor(logger),
+		grpc_zap.UnaryServerInterceptor(logger, grpcZapOptions...),
 	)
 }
 
 func AddStreamLogging(logger *zap.Logger) grpc.StreamServerInterceptor {
-	// Add stream interceptor (added as an example here)
+
 	return grpc_middleware.ChainStreamServer(
 		grpc_ctxtags.StreamServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
-		grpc_zap.StreamServerInterceptor(logger),
+		grpc_zap.StreamServerInterceptor(logger, grpcZapOptions...),
 	)
 }
