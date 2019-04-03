@@ -16,11 +16,12 @@ que se puede encontrar en el archivo LICENCIA.md.
 
 The messages and services are defined by [Google Protocol Buffers](github.com/golang/protobuf).
 
-The services are provided with:
+The services are provided with the following middlewares:
 
 - logging
-- metrics
-- middleware
+- prometheus
+
+Those _middlewares_ are created by default and will run always. You can prevent the service from logging with `` although this it not recommended.
 
 # Project structure
 
@@ -45,3 +46,79 @@ Usually, the main working directory will be `pkg` and its subdirectories. There 
 - services implementation in `pkg/service/v1`. Here is where actual implementation of services defined in proto file takes place. It also holts their test files
 
 Finally, the `tools` directory holds the binaries used to compile the protobuf/grpc and they can be updated running `make tools`.
+
+# gRPC Middleware
+
+This is a little implementation built upon [go-grpc-middleware](https://github.com/grpc-ecosystem/go-grpc-middleware). It uses gRPC Interceptors to attach the functionality.
+
+There are methods to adde _unary_ and _stream_ interceptors:
+
+- `AddUnaryInterceptor(inter grpc.UnaryServerInterceptor)`
+- `func PushUnaryInterceptor(inter grpc.UnaryServerInterceptor)`
+- `func AddStreamInterceptor(inter grpc.StreamServerInterceptor)`
+- `func PushStreamInterceptor(inter grpc.StreamServerInterceptor)`
+
+The `Add` type functions append an interceptor to the list while the `Push` ones prepend the interceptor to the list.
+
+Every _middleware_ should provide functions to get the interceptors so they can be added to `grpc.Server` when it is created:
+
+- `{mwName}UnaryServerInterceptor()`
+- `{mwName}StreamServerInterceptor()`
+
+Those functions can take parameters.
+
+Then, another function to initialize the middleware if needed:
+
+- `func RegisterInterceptorInitializer(i InterceptorInitializer)`
+
+When the server is created, the function `middleware.func Combine(options []grpc.ServerOption) []grpc.ServerOption` is called so the middlewares are registered with the gRPC server.
+
+To add the middleware to the server we add an option with the signature 
+
+	func (g *GrpcServer) Use{MwName}(config *middleware.{MwName}InterceptorConfig) *GrpcServer`
+
+where `*middleware.{MwName}InterceptorConfig` is a struct defined in the middleware that impelements the `InterceptorInitializer` interface, so it provides
+
+	func (lc *LoggingConfig) Init(grpcSrv *grpc.Server)`
+
+Then the middelware can be added to gRPC server creation at `pkg/cmd/server.go`:
+
+	grpcSrv := grpc.New(grpcListener).
+		SetMaxConcurrentStreams(cfg.GrpcMaxConcurrentStreams).
+		UseReflection().
+		UseLogging(&middleware.LoggingConfig{Logger: logger.Log}).
+		UseMyNewMiddleware()
+
+## Logging
+
+The _logging_ middleware is uses [zap](https://github.com/uber-go/zap "Ubber Zap Logger") logger and the implementation is taken from []() (see **Credits**)
+
+You can't disable logging but can effectively log nothing (ideally) by passing `-log-level 2` option to the server. Levels supported by **_zap_** are (more to less verbose):
+
+- **DebugLevel** (`-log-level=-1`), logs are typically voluminous, and are usually disabled in production.
+- **InfoLevel** (`-log-level=0`), is the default logging priority.
+- **WarnLevel** (`--log-level=1`), logs are more important than Info, but don't need individual human review.
+- **ErrorLevel** (`--log-level=2`), logs are high-priority. If an application is running smoothly, _it shouldn't generate any error-level logs_.
+- **DPanicLevel** (`--log-level=3`), logs are particularly important errors. In development the _logger_ panics after writing the message.
+- **PanicLevel** (`--log-level=4`), logs a message, then panics.
+- **FatalLevel** (`--log-level=5`), logs a message, then calls `os.Exit(1)`.
+
+## Prometheus
+
+The [prometheus](https://prometheus.io) exporter make use of [grpc-ecosystem](https://github.com/grpc-ecosystem) [go-grpc-prometheus](https://github.com/grpc-ecosystem/go-grpc-prometheus).
+
+By default, metrics are exported through the endpont `/metrics` but this can be changed by passing `--prometheus-endpoint` option.
+
+This middleware can also be deactivated by passing `--use-prometheus=false`.
+
+# Credits
+
+- [[Tutorial, Part 1] How to develop Go gRPC microservice with HTTP/REST endpoint, middleware, Kubernetes deployment, etc.](https://medium.com/@amsokol.com/tutorial-how-to-develop-go-grpc-microservice-with-http-rest-endpoint-middleware-kubernetes-daebb36a97e9)
+- [[Tutorial, Part 2] How to develop Go gRPC microservice with HTTP/REST endpoint, middleware, Kubernetes deployment, etc.](https://medium.com/@amsokol.com/tutorial-how-to-develop-go-grpc-microservice-with-http-rest-endpoint-middleware-kubernetes-af1fff81aeb2)
+- [[Tutorial, Part 3] How to develop Go gRPC microservice with HTTP/REST endpoint, middleware, Kubernetes deployment, etc.](https://medium.com/@amsokol.com/tutorial-part-3-how-to-develop-go-grpc-microservice-with-http-rest-endpoint-middleware-739aac8f1d7e)
+- [golang-standards/project-layout](https://github.com/golang-standards/project-layout)
+- [Go 1.11 Modules](https://github.com/golang/go/wiki/Modules)
+- [Serving gRPC and HTTP services on the same port](https://www.d3void.net/post/grpc-with-http)
+- [Why choose between gRPC and REST?](https://medium.com/@thatcher/why-choose-between-grpc-and-rest-bc0d351f2f84)
+    - [grpc-rest-go-example](https://github.com/dhrp/grpc-rest-go-example/blob/master/server/main.go#L112)
+    - [grpc-rest-go-example no-gateway](https://github.com/dhrp/grpc-rest-go-example/blob/nogateway/server/main.go)
