@@ -1,0 +1,8 @@
+{
+	"protoc-version": "3.7.0",
+	"path": "~/tmp",
+	"project-email": "user@gmudev.es",
+	"project-url": "https://github.com/jllopis/gmu",
+	"service-name": "SampleProject",
+	"api-version": "v1"
+}

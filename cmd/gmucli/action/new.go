@@ -12,8 +12,12 @@ import (
 	"github.com/iancoleman/strcase"
 
 	color "github.com/logrusorgru/aurora"
+	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/xlab/treeprint"
+
+	"github.com/jllopis/gmu/cmd/gmucli/conf"
 )
 
 var (
@@ -49,12 +53,19 @@ func init() {
 }
 
 func newCmdRun(cmd *cobra.Command, args []string) {
+	// config, err := conf.LoadConfig(cmd)
+	err := conf.LoadConfig(cmd)
+	if err != nil {
+		fmt.Printf("gmu: failed to load configuation: %s\n", err.Error())
+		os.Exit(1)
+	}
+
 	if len(args) != 1 {
 		fmt.Printf("[%s] You must supply a path for the service, e.g gmu new my-project\n", color.Red("ERR"))
 		return
 	}
 
-	basePath, err := getBasePath(path)
+	basePath, err := getBasePath(viper.GetString("path"))
 	if err != nil {
 		fmt.Printf("can not set the base project path. Error: %s\n", err.Error())
 		os.Exit(1)
@@ -70,8 +81,8 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 	projectName := strings.ToLower(args[0][strings.LastIndex(args[0], "/")+1:])
 	packageName = args[0][:strings.LastIndex(args[0], "/")] + "/" + projectName
 	projectRootPath := filepath.Join(basePath, projectName)
-	if serviceName == "" {
-		serviceName = strcase.ToCamel(projectName)
+	if viper.GetString("service-name") == "" {
+		viper.Set("service-name", strcase.ToCamel(projectName))
 	}
 	// fmt.Printf("projectName = %s\nserviceName = %s\n", projectName, serviceName)
 	// os.Exit(0)
@@ -83,10 +94,10 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 
 	apid := rd.addDirectory("api")
 	apid.addDirectory("proto").
-		addDirectory(apiVersion).
+		addDirectory(viper.GetString("api-version")).
 		addFile(strings.ToLower(projectName)+".proto", "proto.tmpl", false)
 	apid.addDirectory("swagger").
-		addDirectory(apiVersion)
+		addDirectory(viper.GetString("api-version"))
 
 	cmdd := rd.addDirectory("cmd")
 	cmdd.addDirectory("server").
@@ -98,14 +109,14 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 
 	pkgd := rd.addDirectory("pkg")
 	pkgd.addDirectory("api").
-		addDirectory(apiVersion)
+		addDirectory(viper.GetString("api-version"))
 	pkgd.addDirectory("cmd").addFile("server.go", "pkg-cmd-server.go.tmpl", false)
 	pkgd.addDirectory("logger").addFile("logger.go", "pkg-logger-logger.go.tmpl", false)
 	pkgd.addDirectory("version").addFile("version.go", "pkg-version-version.go.tmpl", false)
 
-	svcd := pkgd.addDirectory("service").addDirectory(apiVersion)
-	svcd.addFile(strings.ToLower(serviceName)+".go", "pkg-service-sample.go.tmpl", false)
-	svcd.addFile(strings.ToLower(serviceName)+"_test.go", "pkg-service-sample-test.go.tmpl", false)
+	svcd := pkgd.addDirectory("service").addDirectory(viper.GetString("api-version"))
+	svcd.addFile(strings.ToLower(viper.GetString("service-name"))+".go", "pkg-service-sample.go.tmpl", false)
+	svcd.addFile(strings.ToLower(viper.GetString("service-name"))+"_test.go", "pkg-service-sample-test.go.tmpl", false)
 
 	protocold := pkgd.addDirectory("protocol")
 	pgrpcd := protocold.addDirectory("grpc")
@@ -146,10 +157,10 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 		ProjectName:   projectName,
 		BasePath:      projectRootPath,
 		RootDir:       rd,
-		ServiceName:   serviceName,
-		ApiVersion:    apiVersion,
-		ProjectUrl:    projectUrl,
-		ProjectEmail:  projectEmail,
+		ServiceName:   viper.GetString("service-name"),
+		ApiVersion:    viper.GetString("api-version"),
+		ProjectUrl:    viper.GetString("project-url"), //projectUrl,
+		ProjectEmail:  viper.GetString("project-email"),
 		ProtocVersion: protocVersion,
 	}
 
@@ -203,6 +214,13 @@ func getBasePath(path string) (string, error) {
 
 	if &path == nil || path == "" || path == "." {
 		return cwd, nil
+	}
+	if strings.HasPrefix(path, "~") {
+		// this it $HOME, so, expand
+		path, err = homedir.Expand(path)
+		if err != nil {
+			return path, err
+		}
 	}
 	if !strings.HasPrefix(path, "/") {
 		fmt.Printf("found relative path %v\n", path)
