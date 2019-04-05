@@ -8,6 +8,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func init() {
+	RootCmd.PersistentFlags().StringP("config", "c", "", "config file to use overwriting defaults")
+}
+
 var globalOptions = struct {
 	Box *packr.Box
 }{}
