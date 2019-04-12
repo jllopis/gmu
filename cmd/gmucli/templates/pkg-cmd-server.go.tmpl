@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net"
 
@@ -15,50 +14,48 @@ import (
 	"{{ .PackageName }}/pkg/protocol/grpc/middleware"
 	"{{ .PackageName }}/pkg/protocol/rest"
 	service{{ .ApiVersion | ToUpper }} "{{ .PackageName }}/pkg/service/{{ .ApiVersion }}"
+
+	"github.com/jllopis/getconf"
 )
 
 // Config is configuration for Server
 type Config struct {
 	// Service default port shared by protocols gRPC, http
-	DefaultPort string
+	DefaultPort string `getconf:"port, default: 9000, info: port to bind services"`
 	// Log parameters section
 	// LogLevel is global log level: Debug(-1), Info(0), Warn(1), Error(2), DPanic(3), Panic(4), Fatal(5)
-	LogLevel int
+	LogLevel int `getconf:"log-level, default: 0, info: Global log level"`
 	// LogTimeFormat is print time format for logger e.g. 2006-01-02T15:04:05Z07:00
-	LogTimeFormat string
+	LogTimeFormat string `getconf:"log-time-format, info: Print time format for logger e.g. 2006-01-02T15:04:05Z07:00"`
 	// set max concurrent streams served by gRPC server
-	GrpcMaxConcurrentStreams int
+	GrpcMaxConcurrentStreams int `getconf:"grpc-max-concurrent-streams, default: 250, info: grpc server option MaxConcurrentStreams"`
 	// Expose Prometheus metrics
-	UsePrometheus bool
+	UsePrometheus bool `getconf:"use-prometheus, default: true, info: expose prometheus metrics"`
 	// endpoint for Prometheus metrics
-	PrometheusEndpoint string
+	PrometheusEndpoint string `getconf:"prometheus-endpoint, default: /metrics, info: endpoint to serve prometheus metrics. Only available if UsePrometheus()"`
 }
 
 // RunServer runs gRPC server and HTTP gateway
 func RunServer() error {
+	// Load config before doing anything else so we can quit early if error
+	getconf.Load(&getconf.LoaderOptions{
+		ConfigStruct: &Config{},
+		EnvPrefix:    "ECH",
+	})
+
 	ctx := context.Background()
 
-	// get configuration
-	var cfg Config
-	flag.StringVar(&cfg.DefaultPort, "port", "9000", "port to bind services")
-	flag.IntVar(&cfg.LogLevel, "log-level", 0, "Global log level")
-	flag.StringVar(&cfg.LogTimeFormat, "log-time-format", "", "Print time format for logger e.g. 2006-01-02T15:04:05Z07:00")
-	flag.IntVar(&cfg.GrpcMaxConcurrentStreams, "grpc-max-concurrent-streams", 250, "grpc server option MaxConcurrentStreams")
-	flag.BoolVar(&cfg.UsePrometheus, "use-prometheus", true, "expose prometheus metrics")
-	flag.StringVar(&cfg.PrometheusEndpoint, "prometheus-endpoint", "/metrics", "endpoint to serve prometheus metrics. Only available if UsePrometheus()")
-	flag.Parse()
-
-	if len(cfg.DefaultPort) == 0 {
-		return fmt.Errorf("invalid TCP port for server: '%s'", cfg.DefaultPort)
+	if getconf.GetInt("port") == 0 {
+		return fmt.Errorf("invalid TCP port for server: '%s'", getconf.GetString("port"))
 	}
 
 	// initialize logger
-	if err := logger.Init(cfg.LogLevel, cfg.LogTimeFormat); err != nil {
+	if err := logger.Init(getconf.GetInt("log-level"), getconf.GetString("log-time-format")); err != nil {
 		return fmt.Errorf("failed to initialize logger: %v", err)
 	}
 
 	// create the tcp muxer
-	mux, err := newCmux(nil, cfg.DefaultPort)
+	mux, err := newCmux(nil, getconf.GetString("port"))
 	if err != nil {
 		logger.Log.Fatal("cant create tcp listener for CMux, error:" + err.Error())
 	}
@@ -72,13 +69,13 @@ func RunServer() error {
 	// Any significa que no hay coincidencia previa
 	httpListener := mux.Match(cmux.Any())
 
-	logger.Log.Info("service started on port " + cfg.DefaultPort)
+	logger.Log.Info("service started on port " + getconf.GetString("port"))
+
 	// run gRPC gateway
 	grpcSrv := grpc.New(grpcListener).
-		SetMaxConcurrentStreams(cfg.GrpcMaxConcurrentStreams).
+		SetMaxConcurrentStreams(getconf.GetInt("grpc-max-concurrent-streams")).
 		UseReflection().
 		UseLogging(&middleware.LoggingConfig{Logger: logger.Log})
-	
 	// Register gRPC services
 	serviceRegistrator := func() {
 		api{{ .ApiVersion | ToUpper }}.Register{{.ServiceName}}ServiceServer(grpcSrv.GetGrpcServer(), service{{ .ApiVersion | ToUpper }}.New{{.ServiceName}}ServiceServer())
@@ -90,13 +87,15 @@ func RunServer() error {
 	// run HTTP gateway
 	restSrv := rest.New(httpListener, nil).WithCORS().LogRequests()
 	restSrv.Register(func(){
-		api{{ .ApiVersion | ToUpper }}.Register{{.ServiceName}}ServiceHandlerFromEndpoint(context.Background(), restSrv.GetRuntimeMux(), "localhost:"+cfg.DefaultPort, []google_grpc.DialOption{google_grpc.WithInsecure()})
+		api{{ .ApiVersion | ToUpper }}.Register{{.ServiceName}}ServiceHandlerFromEndpoint(context.Background(), restSrv.GetRuntimeMux(),
+			"localhost:"+getconf.GetString("port"),
+			[]google_grpc.DialOption{google_grpc.WithInsecure()})
 	})
 
-	if cfg.UsePrometheus {
+	if getconf.GetBool("use-prometheus") {
 		grpcSrv.UsePrometheus(&middleware.PrometheusInterceptorConfig{
 			HttpMux:             restSrv.GetHttpMux(),
-			Endpoint:            cfg.PrometheusEndpoint,
+			Endpoint:            getconf.GetString("prometheus-endpoint"),
 			EnableTimeHistogram: true,
 		})
 	}
