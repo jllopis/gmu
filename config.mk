@@ -12,7 +12,7 @@ UID=$(shell id -u)
 GID=$(shell id -g)
 
 # Build options
-LDFLAGS=" -s -X version.Name=$(BINNAME) -X version.BuildDate=$(BLDDATE) -X version.Version=$(VERSION) -X version.APIVersion=$(API_VERSION) -X version.GitCommit=$(GIT_COMMIT)"
+LDFLAGS=" -s -w -X version.Name=$(BINNAME) -X version.BuildDate=$(BLDDATE) -X version.Version=$(VERSION) -X version.APIVersion=$(API_VERSION) -X version.GitCommit=$(GIT_COMMIT)"
 SRCS = $(wildcard *.go ./**/*.go)
 OS=$(shell uname -s | tr "[:upper:]" "[:lower:]")
 
