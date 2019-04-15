@@ -1,0 +1,40 @@
+package store
+
+import (
+	// api{{ .ApiVersion | ToUpper }} "{{ .PackageName }}/pkg/api/{{ .ApiVersion }}"
+)
+
+// Storer es la interfaz que deben implementar los diferentes backends que realizen
+// la persistencia del microservicio
+type Storer interface {
+        // Conecta con el Store
+        Dial(options Options) error
+        // Status devuelve el estado de la conexión
+        Status() (int, string)
+        // Close cierra la conexión con el Store
+        Close() error
+        // define tus interfaces a partir de aquí
+        // LiveMatchManager
+}
+
+// type LiveMatchManager interface {
+//         // ListMatches obtains all recrods in DB
+//         ListMatches(*oapi.MatchFilter) ([]*oapi.MatchDetail, error)
+//         // GetMatch obtains a record in database by match ID
+//         GetMatch(matchId int64) (*oapi.MatchDetail, error)
+// }
+
+const (
+        // DISCONNECTED indicates that there is no connection with the Storer
+        DISCONNECTED = iota
+        // CONNECTED indicate that the connection with the Storer is up and running
+        CONNECTED
+)
+
+var (
+        // StatusStr is a string representation of the status of the connections with the Storer
+        StatusStr = []string{"Disconnected", "Connected"}
+)
+
+// Options is a map to hold the database connection options
+type Options map[string]interface{}

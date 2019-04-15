@@ -39,6 +39,7 @@ var (
 	serviceName   string
 	apiVersion    string
 	protocVersion string
+	withDB        bool
 )
 
 func init() {
@@ -50,6 +51,7 @@ func init() {
 	newCmd.Flags().StringVarP(&serviceName, "service-name", "", "", "service name, defaults to the project name if not specified")
 	newCmd.Flags().StringVarP(&apiVersion, "api-version", "", "v1", "api major version")
 	newCmd.Flags().StringVarP(&protocVersion, "protoc-version", "", "3.7.0", "protobuf compiler version")
+	newCmd.Flags().BoolVarP(&withDB, "with-db", "", false, "add code for db storage")
 }
 
 func newCmdRun(cmd *cobra.Command, args []string) {
@@ -152,6 +154,14 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 	rd.addFile("LICENCIA.md", "licencia.tmpl", false)
 	rd.addFile("FAQ-Licencia.md", "faq-licencia.tmpl", false)
 
+	if viper.GetBool("with-db") {
+		stor := pkgd.addDirectory("store")
+		stor.addFile("store.go", "pkg-store-store.go.tmpl", false)
+		gopg := stor.addDirectory("gopg")
+		gopg.addFile("gopg.go", "pkg-store-gopg-gopg.go.tmpl", false)
+		gopg.addFile("models.go", "pkg-store-gopg-models.go.tmpl", false)
+	}
+
 	project := &Project{
 		PackageName:   packageName,
 		ProjectName:   projectName,
@@ -162,6 +172,7 @@ func newCmdRun(cmd *cobra.Command, args []string) {
 		ProjectUrl:    viper.GetString("project-url"), //projectUrl,
 		ProjectEmail:  viper.GetString("project-email"),
 		ProtocVersion: protocVersion,
+		WithDb:        viper.GetBool("with-db"),
 	}
 
 	fmt.Println("Project wil be created as:")
@@ -248,6 +259,7 @@ type Project struct {
 	ServiceName   string
 	ApiVersion    string
 	ProtocVersion string
+	WithDb        bool
 }
 
 type Directory struct {

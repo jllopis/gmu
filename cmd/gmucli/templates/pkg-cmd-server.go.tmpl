@@ -10,6 +10,7 @@ import (
 
 	api{{ .ApiVersion | ToUpper }} "{{ .PackageName }}/pkg/api/{{ .ApiVersion }}"
 	"{{ .PackageName }}/pkg/logger"
+	{{ if .WithDb -}}"{{ .PackageName }}/pkg/store/gopg"{{ end }}
 	"{{ .PackageName }}/pkg/protocol/grpc"
 	"{{ .PackageName }}/pkg/protocol/grpc/middleware"
 	"{{ .PackageName }}/pkg/protocol/rest"
@@ -33,6 +34,17 @@ type Config struct {
 	UsePrometheus bool `getconf:"use-prometheus, default: true, info: expose prometheus metrics"`
 	// endpoint for Prometheus metrics
 	PrometheusEndpoint string `getconf:"prometheus-endpoint, default: /metrics, info: endpoint to serve prometheus metrics. Only available if UsePrometheus()"`
+	// if mode is dev, log everything
+	Mode string `getconf:"mode, default: dev, info: set the environment (dev staging or prod)"`
+	{{ if .WithDb -}}
+	Store struct {
+		Host    string `getconf:"host, default: db.acb.info, info: store server address"`
+		Port    string `getconf:"port, default: 5432, info: store server port"`
+		Name    string `getconf:"name, default: {{ .ProjectName }}db, info: store database name"`
+		User    string `getconf:"user, default: {{ .ProjectName }}adm, info: store user to connect to db"`
+		Pass    string `getconf:"pass, default: 00000000, info: store user password"`
+	}
+	{{ end }}
 }
 
 // RunServer runs gRPC server and HTTP gateway
@@ -54,6 +66,33 @@ func RunServer() error {
 		return fmt.Errorf("failed to initialize logger: %v", err)
 	}
 
+	{{ if .WithDb -}}
+	// Start store connections
+	// Enable query logger if mode is "dev"
+	enableQueryLogger := false
+	mode := getconf.GetString("mode")
+	if mode == "dev" {
+			enableQueryLogger = true
+	}
+
+	dbstore, err := gopg.New()
+	if err != nil {
+			return fmt.Errorf("Could not create store Manager error: %s", err.Error())
+	}
+
+	err = dbstore.Dial(map[string]interface{}{
+			"host":              getconf.GetString("store::host"),
+			"port":              getconf.GetInt("store::port"),
+			"user":              getconf.GetString("store::user"),
+			"password":          getconf.GetString("store::pass"),
+			"dbname":            getconf.GetString("store::name"),
+			"sslmode":           "disable",
+			"enableQueryLogger": enableQueryLogger,
+	})
+	if err != nil {
+			return fmt.Errorf("Could not connect to store error: %s", err.Error())
+	}
+	{{- end }}
 	// create the tcp muxer
 	mux, err := newCmux(nil, getconf.GetString("port"))
 	if err != nil {
@@ -75,7 +114,8 @@ func RunServer() error {
 	grpcSrv := grpc.New(grpcListener).
 		SetMaxConcurrentStreams(getconf.GetInt("grpc-max-concurrent-streams")).
 		UseReflection().
-		UseLogging(&middleware.LoggingConfig{Logger: logger.Log})
+		UseLogging(&middleware.LoggingConfig{Logger: logger.Log}){{- if .WithDb }}.
+		UseStore(dbstore){{ end }}
 	// Register gRPC services
 	serviceRegistrator := func() {
 		api{{ .ApiVersion | ToUpper }}.Register{{.ServiceName}}ServiceServer(grpcSrv.GetGrpcServer(), service{{ .ApiVersion | ToUpper }}.New{{.ServiceName}}ServiceServer())

@@ -1,0 +1,52 @@
+package gopg
+
+import (
+	"time"
+
+	// api{{ .ApiVersion | ToUpper }} "{{ .PackageName }}/pkg/api/{{ .ApiVersion }}"
+
+	"github.com/go-pg/pg"
+)
+
+type ModelTipo struct {
+	TableName  struct{} `sql:"tipos,alias:tipos" pg:",discard_unknown_columns"`
+	Id         int64
+	Publicable int32
+	Created    time.Time
+	Updated    time.Time
+	Deleted    pg.NullTime `sql:",null"`
+}
+
+// Marshal will convert the ModelAccionTipo  model data into a corresponding gRPC message
+// pointed by v.
+// The gRPC message should be the required one. It is not infered.
+func (m *ModelTipo) Marshal(v interface{}) error {
+	// Comprobar que v es del tipo correcto
+	// tipo, ok := v.(*api{{ .ApiVersion | ToUpper }}.TipoMessage)
+	// if !ok {
+	// 		return errors.New("Value is not of type api{{ .ApiVersion | ToUpper }}.TipoMessage")
+	// }
+
+	// Asignar los valores a sus correspondientes variables
+	// tipo.Id = m.Id
+	// tipo.Publicable = m.Publicable
+
+	return nil
+}
+
+// Unmarshal will convert the data of the gRPC message pointed in v
+// and put it in the ModelAccionTipo model data
+// The gRPC message should be the required one. It is not infered.
+func (m *ModelTipo) Unmarshal(v interface{}) error {
+	// Comprobar que v es del tipo correcto
+	// acciontipo, ok := v.(*api{{ .ApiVersion | ToUpper }}.TipoMessage)
+	// if !ok {
+	// 		return errors.New("Value is not of type api{{ .ApiVersion | ToUpper }}.StatsAccionTipoMessage")
+	// }
+
+	// Asignar los valores a sus correspondientes variables
+	// m.Id = tipo.Id
+	// m.Publicable = tipo.Publicable
+
+	return nil
+}

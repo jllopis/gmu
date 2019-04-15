@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"{{ .PackageName }}/pkg/protocol/grpc/middleware"
+	{{ if .WithDb -}}"{{ .PackageName }}/pkg/store"{{ end }}
 
 	"github.com/grpc-ecosystem/go-grpc-prometheus"
 )
@@ -32,3 +33,10 @@ func (g *GrpcServer) UsePrometheus(config *middleware.PrometheusInterceptorConfi
 
 	return g
 }
+
+{{ if .WithDb -}}
+func (g *GrpcServer) UseStore(s store.Storer) *GrpcServer {
+	g.store = s
+	return g
+}
+{{ end }}

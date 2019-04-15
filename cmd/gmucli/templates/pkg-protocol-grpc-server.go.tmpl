@@ -7,6 +7,7 @@ import (
 	"os/signal"
 
 	"{{ .PackageName }}/pkg/logger"
+	{{ if .WithDb -}}"{{ .PackageName }}/pkg/store"{{ end }}
 	"{{ .PackageName }}/pkg/protocol/grpc/middleware"
 
 	"github.com/soheilhy/cmux"
@@ -21,6 +22,7 @@ type GrpcServer struct {
 	grpcReflection           bool
 	prometheus               bool
 	grpcServicesRegistrators []ServiceRegistrator
+	{{ if .WithDb -}}store                    store.Storer{{ end }}
 }
 
 func New(listen net.Listener) *GrpcServer {

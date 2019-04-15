@@ -53,7 +53,11 @@ run-server: server ## build and run the server for testing
 	@ECH_PORT=9000 \
         ${BLDDIR}/${SRV_BINNAME}_${VERSION}_${OS}_amd64.bin \
             -log-level=-1 \
-            -log-time-format=2006-01-02T15:04:05.999999999Z07:00
+            -log-time-format=2006-01-02T15:04:05.999999999Z07:00{{ if .WithDb }} \
+            -store::host=localhost \
+            -store::name={{ .ProjectName }}db \
+            -store::user={{ .ProjectName }}adm \
+            -store::pass=00000000{{ end }}
 
 clean: ## remove the generated files to start clean but keep the images
 	rm -rf $(BLDDIR)
